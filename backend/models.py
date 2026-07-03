@@ -4,7 +4,7 @@ from database import Base
 class Book(Base):
     __tablename__ = "books"
 
-    id = Column(Integer, primary key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     book_id = Column(Integer, unique=True, index=True)
     title = Column(String(255), nullable=False)
     authors = Column(Text, nullable=False)  # Stores string representation of authors list
@@ -13,7 +13,7 @@ class Book(Base):
     genres = Column(Text, nullable=True)  # Stores string representation of genres list
     image_url = Column(Text, nullable=True)
     pages = Column(Integer, nullable=True)
-    publish_date = Column(String(50), nullable=True)
+    publish_date = Column(Text, nullable=True)
     ratings_count = Column(Integer, default=0)
 
     def to_dict(self):

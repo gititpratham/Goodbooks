@@ -31,8 +31,9 @@ def wait_for_db(max_retries=10, delay=3):
     for i in range(max_retries):
         try:
             # Try to connect and execute a simple test query
+            from sqlalchemy import text
             conn = engine.connect()
-            conn.execute(Base.metadata.clear())
+            conn.execute(text("SELECT 1"))
             conn.close()
             logger.info("Database is ready!")
             return True
