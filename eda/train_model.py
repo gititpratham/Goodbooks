@@ -2,30 +2,26 @@
 """
 =========================================================
   GOODBOOKS-10K — HYBRID ML RECOMMENDATION MODEL
-  Training Script
+  Training Script  (Full-data version)
 =========================================================
-Trains TWO neural ranker models and compares them:
-  · SMALL model : 8,000 sampled users  (~80k training pairs)
-  · FULL  model : ALL 53,424 users     (~530k training pairs)
+Trains a Neural Ranker on ALL 53,424 users from ratings.csv.
 
-Architecture — Pairwise Neural Ranker (MLP):
+Architecture — Pairwise MLP:
   Content-Based : TF-IDF + SVD descriptions (64d)
                   Genre multi-hot  (39d)
                   Mood  multi-hot  ( 8d)
                   Numeric features ( 4d)  — pages, year, rating, popularity
   Collaborative : Training signal from ratings.csv
-                  user_pref_vec = avg feature of 4–5★ rated books
-  Model Input   : concat(user_pref_vec[115d], book_feat_vec[115d]) = 230d
-  MLP Layers    : 230 → 256 → 128 → 64 → 1  (sigmoid)
+                  user_pref_vec = mean feature vector of 4–5★ rated books
+  Model Input   : concat(user_pref[115d], book_feat[115d]) = 230d
+  MLP Layers    : 230 → 256 → 128 → 64 → 1  (ReLU + Adam + early stopping)
 
 Run from goodbooks/eda/:
   pip install scikit-learn pandas numpy joblib
   python train_model.py
 
 Saves to ./model/:
-  recommender_small.joblib
-  recommender_full.joblib
-  recommender_best.joblib   ← auto-selected by ROC-AUC
+  recommender_full.joblib   ← the trained model (also copied as recommender_best.joblib)
 =========================================================
 """
 
@@ -50,19 +46,16 @@ BASE       = os.path.dirname(os.path.abspath(__file__))
 ROOT       = os.path.join(BASE, "..")
 ARCH       = os.path.join(BASE, "archive")
 
-ENRICHED_PATH  = os.path.join(ROOT, "backend", "data", "books_enriched.csv")
-RATINGS_PATH   = os.path.join(ARCH, "ratings.csv")
-TAGS_PATH      = os.path.join(ARCH, "tags.csv")
-BOOK_TAGS_PATH = os.path.join(ARCH, "book_tags.csv")
-MODEL_DIR      = os.path.join(BASE, "model")
+ENRICHED_PATH = os.path.join(ROOT, "backend", "data", "books_enriched.csv")
+RATINGS_PATH  = os.path.join(ARCH, "ratings.csv")
+MODEL_DIR     = os.path.join(BASE, "model")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ─── Hyper-parameters ──────────────────────────────────────────────
-SMALL_N_USERS  = 8_000    # users for the small model
-MAX_POS_USER   = 5        # max positive examples per user
-MAX_NEG_USER   = 5        # max negative examples per user
-N_SVD_DIMS     = 64       # desc embedding dims
-TEST_FRAC      = 0.15     # held-out test fraction
+MAX_POS_USER = 5       # max positive examples per user
+MAX_NEG_USER = 5       # max negative examples per user
+N_SVD_DIMS   = 64      # description embedding dimensions
+TEST_FRAC    = 0.15    # held-out test fraction
 
 # ─── Mood taxonomy ─────────────────────────────────────────────────
 MOOD_LIST = [
@@ -90,7 +83,7 @@ def tag_moods(desc):
     d = desc.lower()
     return [m for m, kws in MOOD_KEYWORDS.items() if any(k in d for k in kws)]
 
-def sep(ch="═"):  print(ch * 60, flush=True)
+def sep(ch="═"): print(ch * 60, flush=True)
 def log(msg=""):  print(msg, flush=True)
 
 
@@ -98,13 +91,13 @@ def log(msg=""):  print(msg, flush=True)
 #  1. LOAD DATA
 # ══════════════════════════════════════════════════════════════════
 sep()
-log("  GOODBOOKS HYBRID ML RECOMMENDER — TRAINING")
+log("  GOODBOOKS HYBRID ML RECOMMENDER — TRAINING (FULL DATA)")
 sep()
 log()
-log("[1/6] Loading data ...")
+log("[1/5] Loading data ...")
 
-enriched  = pd.read_csv(ENRICHED_PATH)
-ratings   = pd.read_csv(RATINGS_PATH)
+enriched = pd.read_csv(ENRICHED_PATH)
+ratings  = pd.read_csv(RATINGS_PATH)
 
 log(f"  books_enriched : {len(enriched):,} books × {enriched.shape[1]} cols")
 log(f"  ratings.csv    : {len(ratings):,} ratings | "
@@ -119,7 +112,7 @@ enriched["pub_year"]    = pd.to_numeric(enriched["original_publication_year"], e
 enriched["pages"]       = pd.to_numeric(enriched["pages"], errors="coerce")
 
 # Sort so row index is stable
-enriched = enriched.sort_values("book_id").reset_index(drop=True)
+enriched  = enriched.sort_values("book_id").reset_index(drop=True)
 BOOK_IDS  = enriched["book_id"].tolist()
 BID2ROW   = {bid: i for i, bid in enumerate(BOOK_IDS)}
 N_BOOKS   = len(BOOK_IDS)
@@ -130,7 +123,7 @@ log(f"  Unique genres  : {enriched['genres_list'].explode().nunique()}")
 #  2. FEATURE ENGINEERING  (115-dim vector per book)
 # ══════════════════════════════════════════════════════════════════
 log()
-log("[2/6] Engineering book features ...")
+log("[2/5] Engineering book features ...")
 
 # ── Genre multi-hot (39d) ──────────────────────────────────────────
 GENRE_LIST   = sorted(set(g for gl in enriched["genres_list"] for g in gl if g))
@@ -150,7 +143,7 @@ for i, ml in enumerate(enriched["mood_tags"]):
         if m in MOOD_TO_IDX:
             mood_mat[i, MOOD_TO_IDX[m]] = 1.0
 
-# ── Numeric (4d): pages, pub_year, avg_rating, log_ratings_count ──
+# ── Numeric (4d): pages, pub_year, avg_rating, log_ratings ─────────
 PAGES_MED = enriched["pages"].median()
 YEAR_MED  = enriched["pub_year"].median()
 
@@ -180,171 +173,119 @@ log(f"  Book feature matrix: {BOOK_FEATS.shape}  ({FEAT_DIM} dims per book)")
 
 
 # ══════════════════════════════════════════════════════════════════
-#  3. BUILD TRAINING DATA (helper)
+#  3. BUILD TRAINING DATA  (all 53,424 users)
 # ══════════════════════════════════════════════════════════════════
-
-def build_training_data(ratings_df, n_users=None, label=""):
-    """
-    Create pairwise (user_pref_vec ‖ book_feat_vec, label) training examples.
-    user_pref_vec = average feature vector of books the user rated 4–5★.
-    Positive label: book the user liked (≥4★)
-    Negative label: book the user disliked (≤2★) + random unrated books
-    """
-    t0 = time.time()
-    log()
-    log(f"[3/6] Building training data — {label} ...")
-
-    # Select users
-    all_uids = ratings_df["user_id"].unique()
-    if n_users is not None and n_users < len(all_uids):
-        chosen = np.random.choice(all_uids, n_users, replace=False)
-        rdf = ratings_df[ratings_df["user_id"].isin(chosen)]
-    else:
-        rdf = ratings_df
-
-    log(f"  Users: {rdf['user_id'].nunique():,}")
-
-    X_list, y_list = [], []
-    skipped = 0
-    total   = rdf["user_id"].nunique()
-
-    for idx, (uid, grp) in enumerate(rdf.groupby("user_id")):
-        if idx % 5000 == 0 and idx > 0:
-            elapsed = time.time() - t0
-            log(f"  {idx:>6,}/{total:,} users | {len(X_list):,} examples | {elapsed:.0f}s elapsed")
-
-        liked_bids    = grp[grp["rating"] >= 4]["book_id"].values
-        disliked_bids = grp[grp["rating"] <= 2]["book_id"].values
-
-        liked_rows    = [BID2ROW[b] for b in liked_bids    if b in BID2ROW]
-        disliked_rows = [BID2ROW[b] for b in disliked_bids if b in BID2ROW]
-
-        if len(liked_rows) < 2:
-            skipped += 1
-            continue
-
-        # User taste profile = centroid of liked book features
-        user_pref = BOOK_FEATS[liked_rows].mean(axis=0)
-
-        # ── Positive examples ──────────────────────────────────
-        for row_i in liked_rows[:MAX_POS_USER]:
-            X_list.append(np.concatenate([user_pref, BOOK_FEATS[row_i]]))
-            y_list.append(1)
-
-        # ── Negative examples ──────────────────────────────────
-        neg_rows = list(disliked_rows[: MAX_NEG_USER // 2])
-        n_random = MAX_NEG_USER - len(neg_rows)
-        if n_random > 0:
-            rated_set = {BID2ROW[b] for b in grp["book_id"].values if b in BID2ROW}
-            pool      = [i for i in range(N_BOOKS) if i not in rated_set]
-            if pool:
-                neg_rows.extend(
-                    np.random.choice(pool, min(n_random, len(pool)), replace=False).tolist()
-                )
-        for row_i in neg_rows[:MAX_NEG_USER]:
-            X_list.append(np.concatenate([user_pref, BOOK_FEATS[row_i]]))
-            y_list.append(0)
-
-    X = np.array(X_list, dtype=np.float32)
-    y = np.array(y_list,  dtype=np.int32)
-    elapsed = time.time() - t0
-    log(f"  Done in {elapsed:.1f}s | {len(X):,} examples | "
-        f"{y.sum():,} positive ({y.mean()*100:.1f}%) | "
-        f"{skipped:,} users skipped (too few liked)")
-    return X, y
-
-
-# ══════════════════════════════════════════════════════════════════
-#  4. TRAIN MLP (helper)
-# ══════════════════════════════════════════════════════════════════
-
-def train_and_evaluate(X, y, label=""):
-    log()
-    log(f"[4/6] Training MLP — {label} ...")
-
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y, test_size=TEST_FRAC, random_state=42, stratify=y
-    )
-    log(f"  Train: {len(X_tr):,}  |  Test: {len(X_te):,}")
-    log(f"  Input dim: {X_tr.shape[1]}")
-
-    mlp = MLPClassifier(
-        hidden_layer_sizes=(256, 128, 64),
-        activation="relu",
-        solver="adam",
-        alpha=1e-4,
-        batch_size=1024,
-        learning_rate="adaptive",
-        learning_rate_init=1e-3,
-        max_iter=100,
-        early_stopping=True,
-        validation_fraction=0.1,
-        n_iter_no_change=8,
-        tol=1e-4,
-        random_state=42,
-        verbose=True,
-    )
-
-    t0 = time.time()
-    mlp.fit(X_tr, y_tr)
-    elapsed = time.time() - t0
-    log(f"  Training done in {elapsed:.1f}s | {mlp.n_iter_} iterations")
-
-    # Evaluate
-    y_pred  = mlp.predict(X_te)
-    y_proba = mlp.predict_proba(X_te)[:, 1]
-    auc     = roc_auc_score(y_te, y_proba)
-    prec    = precision_score(y_te, y_pred, zero_division=0)
-    rec     = recall_score(y_te, y_pred, zero_division=0)
-
-    log()
-    log(f"  ── Evaluation ({label}) ──────────────────────")
-    log(classification_report(y_te, y_pred, target_names=["Disliked", "Liked"]))
-    log(f"  ROC-AUC   : {auc:.4f}")
-    log(f"  Precision : {prec:.4f}  |  Recall : {rec:.4f}")
-
-    return mlp, auc, prec, rec
-
-
-# ══════════════════════════════════════════════════════════════════
-#  5. TRAIN BOTH MODELS
-# ══════════════════════════════════════════════════════════════════
-
-# ── SMALL (8k users) ──────────────────────────────────────────────
-X_s, y_s = build_training_data(ratings, n_users=SMALL_N_USERS, label=f"SMALL ({SMALL_N_USERS:,} users)")
-mlp_s, auc_s, prec_s, rec_s = train_and_evaluate(X_s, y_s, label="SMALL")
-
-# ── FULL (all users) ──────────────────────────────────────────────
-X_f, y_f = build_training_data(ratings, n_users=None, label="FULL (all users)")
-mlp_f, auc_f, prec_f, rec_f = train_and_evaluate(X_f, y_f, label="FULL")
-
-
-# ══════════════════════════════════════════════════════════════════
-#  6. COMPARE, SAVE, SMOKE-TEST
-# ══════════════════════════════════════════════════════════════════
-sep()
 log()
-log("[5/6] Model Comparison")
-log()
-log(f"  {'Model':<10} {'Examples':>10} {'ROC-AUC':>9} {'Precision':>10} {'Recall':>8}")
-log("  " + "─" * 52)
-log(f"  {'SMALL':<10} {len(X_s):>10,} {auc_s:>9.4f} {prec_s:>10.4f} {rec_s:>8.4f}")
-log(f"  {'FULL':<10} {len(X_f):>10,} {auc_f:>9.4f} {prec_f:>10.4f} {rec_f:>8.4f}")
-log(f"  {'AUC Δ':<10} {'':<10} {auc_f-auc_s:>+9.4f}")
-log()
-winner  = "FULL"  if auc_f >= auc_s else "SMALL"
-best_auc = max(auc_f, auc_s)
-log(f"  ★ Winner: {winner} model  (AUC = {best_auc:.4f})")
+log("[3/5] Building training data from ALL users ...")
 
-# Shared pipeline components
-meta_cols = [
-    "book_id", "title", "authors", "average_rating",
-    "genres", "description", "pages", "pub_year",
-    "image_url", "ratings_count",
-]
+t0 = time.time()
+X_list, y_list = [], []
+skipped = 0
+total   = ratings["user_id"].nunique()
+log(f"  Total users: {total:,}")
+
+for idx, (uid, grp) in enumerate(ratings.groupby("user_id")):
+    if idx % 5000 == 0 and idx > 0:
+        elapsed = time.time() - t0
+        log(f"  {idx:>6,}/{total:,} users | {len(X_list):,} examples | {elapsed:.0f}s elapsed")
+
+    liked_bids    = grp[grp["rating"] >= 4]["book_id"].values
+    disliked_bids = grp[grp["rating"] <= 2]["book_id"].values
+
+    liked_rows    = [BID2ROW[b] for b in liked_bids    if b in BID2ROW]
+    disliked_rows = [BID2ROW[b] for b in disliked_bids if b in BID2ROW]
+
+    if len(liked_rows) < 2:
+        skipped += 1
+        continue
+
+    # User taste profile = centroid of liked book features
+    user_pref = BOOK_FEATS[liked_rows].mean(axis=0)
+
+    # Positive examples
+    for row_i in liked_rows[:MAX_POS_USER]:
+        X_list.append(np.concatenate([user_pref, BOOK_FEATS[row_i]]))
+        y_list.append(1)
+
+    # Negative examples: disliked books + random unrated
+    neg_rows = list(disliked_rows[: MAX_NEG_USER // 2])
+    n_random = MAX_NEG_USER - len(neg_rows)
+    if n_random > 0:
+        rated_set = {BID2ROW[b] for b in grp["book_id"].values if b in BID2ROW}
+        pool      = [i for i in range(N_BOOKS) if i not in rated_set]
+        if pool:
+            neg_rows.extend(
+                np.random.choice(pool, min(n_random, len(pool)), replace=False).tolist()
+            )
+    for row_i in neg_rows[:MAX_NEG_USER]:
+        X_list.append(np.concatenate([user_pref, BOOK_FEATS[row_i]]))
+        y_list.append(0)
+
+X = np.array(X_list, dtype=np.float32)
+y = np.array(y_list,  dtype=np.int32)
+elapsed = time.time() - t0
+log(f"  Done in {elapsed:.1f}s | {len(X):,} examples | "
+    f"{y.sum():,} positive ({y.mean()*100:.1f}%) | "
+    f"{skipped:,} users skipped (too few liked books)")
+
+
+# ══════════════════════════════════════════════════════════════════
+#  4. TRAIN MLP
+# ══════════════════════════════════════════════════════════════════
+log()
+log("[4/5] Training MLP ...")
+
+X_tr, X_te, y_tr, y_te = train_test_split(
+    X, y, test_size=TEST_FRAC, random_state=42, stratify=y
+)
+log(f"  Train: {len(X_tr):,}  |  Test: {len(X_te):,}  |  Input dim: {X_tr.shape[1]}")
+
+mlp = MLPClassifier(
+    hidden_layer_sizes=(256, 128, 64),
+    activation="relu",
+    solver="adam",
+    alpha=1e-4,
+    batch_size=1024,
+    learning_rate="adaptive",
+    learning_rate_init=1e-3,
+    max_iter=100,
+    early_stopping=True,
+    validation_fraction=0.1,
+    n_iter_no_change=8,
+    tol=1e-4,
+    random_state=42,
+    verbose=True,
+)
+
+t0 = time.time()
+mlp.fit(X_tr, y_tr)
+elapsed = time.time() - t0
+log(f"  Training done in {elapsed:.1f}s | {mlp.n_iter_} iterations")
+
+
+# ══════════════════════════════════════════════════════════════════
+#  5. EVALUATE, SAVE & SMOKE TEST
+# ══════════════════════════════════════════════════════════════════
+log()
+log("[5/5] Evaluating ...")
+
+y_pred  = mlp.predict(X_te)
+y_proba = mlp.predict_proba(X_te)[:, 1]
+auc     = roc_auc_score(y_te, y_proba)
+prec    = precision_score(y_te, y_pred, zero_division=0)
+rec     = recall_score(y_te, y_pred, zero_division=0)
+
+log(classification_report(y_te, y_pred, target_names=["Disliked", "Liked"]))
+log(f"  ROC-AUC   : {auc:.4f}")
+log(f"  Precision : {prec:.4f}  |  Recall : {rec:.4f}")
+
+# Save
+meta_cols = ["book_id","title","authors","average_rating","genres",
+             "description","pages","pub_year","image_url","ratings_count"]
 meta_df = enriched[meta_cols].copy().set_index("book_id")
 
-pipeline = dict(
+bundle = dict(
+    mlp          = mlp,
     tfidf        = tfidf,
     svd          = svd,
     scaler       = scaler,
@@ -358,76 +299,55 @@ pipeline = dict(
     pages_median = float(PAGES_MED),
     year_median  = float(YEAR_MED),
     meta         = meta_df,
+    auc          = auc,
+    n_train      = len(X),
+    model_label  = "FULL",
 )
 
-log()
-log("[6/6] Saving models ...")
-
-for tag, mlp, auc, n_ex in [
-    ("small", mlp_s, auc_s, len(X_s)),
-    ("full",  mlp_f, auc_f, len(X_f)),
-]:
-    path   = os.path.join(MODEL_DIR, f"recommender_{tag}.joblib")
-    bundle = {"mlp": mlp, "auc": auc, "n_train": n_ex, "model_label": tag.upper(), **pipeline}
+for fname in ["recommender_full.joblib", "recommender_best.joblib"]:
+    path = os.path.join(MODEL_DIR, fname)
     joblib.dump(bundle, path, compress=3)
-    log(f"  Saved {tag.upper():5s}: {os.path.getsize(path)/1e6:.1f} MB → {path}")
+    log(f"  Saved: {os.path.getsize(path)/1e6:.1f} MB → {path}")
 
-best_bundle = {"mlp": mlp_f if winner == "FULL" else mlp_s,
-               "auc": best_auc,
-               "n_train": len(X_f) if winner == "FULL" else len(X_s),
-               "model_label": winner, **pipeline}
-best_path = os.path.join(MODEL_DIR, "recommender_best.joblib")
-joblib.dump(best_bundle, best_path, compress=3)
-log(f"  Saved BEST : {os.path.getsize(best_path)/1e6:.1f} MB → {best_path}")
-
-
-# ── Quick Smoke Test ──────────────────────────────────────────────
+# Smoke test
 log()
-log("  Smoke test → Fantasy + Escapist + min_rating 4.0 + max_pages 500 ...")
+log("  Smoke test → Fantasy + Escapist + Heartwarming, ≥4.0★, ≤500pp ...")
 
-# Build user pref vector inline
-best_mlp = best_bundle["mlp"]
-test_genres = ["fantasy"]; test_moods = ["Escapist", "Heartwarming"]
+test_genres = ["fantasy"]; test_moods = ["Escapist","Heartwarming"]
 min_rat = 4.0; max_pgs = 500
 
 gv = np.zeros(len(GENRE_LIST), dtype=np.float32)
 for g in test_genres:
     if g in GENRE_TO_IDX: gv[GENRE_TO_IDX[g]] = 1.0
-
 mv = np.zeros(len(MOOD_LIST), dtype=np.float32)
 for m in test_moods:
     if m in MOOD_TO_IDX: mv[MOOD_TO_IDX[m]] = 1.0
-
 num_raw  = np.array([[max_pgs, 2005.0, min_rat, np.log1p(50000)]], dtype=np.float32)
 nv       = scaler.transform(num_raw).flatten()
-pseudo   = " ".join(test_genres + test_moods + ["magic", "adventure", "heartwarming"])
+pseudo   = " ".join(test_genres + test_moods + ["magic","adventure","heartwarming"])
 dv       = svd.transform(tfidf.transform([pseudo])).flatten().astype(np.float32)
-user_pref= np.concatenate([gv, mv, nv, dv])
-
-user_rep = np.tile(user_pref, (N_BOOKS, 1))
-X_inf    = np.hstack([user_rep, BOOK_FEATS])
-scores   = best_mlp.predict_proba(X_inf)[:, 1]
+upref    = np.concatenate([gv, mv, nv, dv])
+scores   = mlp.predict_proba(np.hstack([np.tile(upref,(N_BOOKS,1)), BOOK_FEATS]))[:,1]
 
 hits = []
-for i, (bid, sc) in enumerate(zip(BOOK_IDS, scores)):
+for i,(bid,sc) in enumerate(zip(BOOK_IDS, scores)):
     if bid not in meta_df.index: continue
     bk = meta_df.loc[bid]
     if bk["average_rating"] < min_rat: continue
     pgs = bk.get("pages")
-    if max_pgs and not (pd.isna(pgs) or pgs is None) and pgs > max_pgs: continue
+    if max_pgs and pgs and not pd.isna(pgs) and pgs > max_pgs: continue
     hits.append((sc, str(bk["title"]), float(bk["average_rating"]),
                  int(pgs) if pgs and not pd.isna(pgs) else 0))
-
 hits.sort(reverse=True)
+
 log(f"  {'Score':>7}  {'★':>4}  {'pp':>5}  Title")
-log("  " + "─" * 65)
-for sc, title, rat, pgs in hits[:10]:
-    log(f"  {sc:.4f}  {rat:.2f}  {pgs:>5}  {title[:48]}")
+log("  " + "─"*65)
+for sc,title,rat,pgs in hits[:10]:
+    log(f"  {sc:.4f}  {rat:.2f}  {pgs:>5}  {title[:50]}")
 
 sep()
 log("  TRAINING COMPLETE")
-log(f"  SMALL  AUC = {auc_s:.4f}  ({len(X_s):,} training pairs)")
-log(f"  FULL   AUC = {auc_f:.4f}  ({len(X_f):,} training pairs)")
-log(f"  Winner: {winner}  |  Best AUC = {best_auc:.4f}")
-log(f"  Models saved → {MODEL_DIR}/")
+log(f"  AUC={auc:.4f} | Acc={((y_pred==y_te).sum()/len(y_te))*100:.1f}% | "
+    f"Training pairs={len(X):,} | Users={total:,}")
+log(f"  Model saved → {MODEL_DIR}/")
 sep()
