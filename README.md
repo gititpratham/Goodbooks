@@ -68,6 +68,5 @@ docker-compose down
 ## Directory Structure
 - `/frontend`: React + TypeScript source code, Vite config, and Nginx setup.
 - `/backend`: Python FastAPI source, Pydantic models, SQLite schema, and Recommender logic.
-- `/data`: Enriched dataset containing book metadata and NLP-generated descriptions.
-- `/db/goodbooks10`: Raw tag data from the original Goodbooks-10k Kaggle dataset.
-- `/eda`: Exploratory Data Analysis notebooks, reports, and original Python ML models documenting the data engineering phase.
+  - `/backend/db`: The raw Kaggle dataset CSVs used for seeding (`books.csv`, `tags.csv`, `book_tags.csv`).
+- `/archive`: Old EDA notebooks, previous attempts, and project documents.

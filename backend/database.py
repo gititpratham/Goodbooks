@@ -35,9 +35,9 @@ _HERE = Path(__file__).parent
 _ROOT = _HERE.parent  # project root (goodbooks/)
 
 DB_PATH       = Path(os.environ.get("DB_PATH",       str(_HERE / "goodbooks.db")))
-BOOKS_CSV     = Path(os.environ.get("BOOKS_CSV",     str(_ROOT / "db" / "goodbooks10" / "books.csv")))
-TAGS_CSV      = Path(os.environ.get("TAGS_CSV",      str(_ROOT / "db" / "goodbooks10" / "tags.csv")))
-BOOK_TAGS_CSV = Path(os.environ.get("BOOK_TAGS_CSV", str(_ROOT / "db" / "goodbooks10" / "book_tags.csv")))
+BOOKS_CSV     = Path(os.environ.get("BOOKS_CSV",     str(_HERE / "db" / "books.csv")))
+TAGS_CSV      = Path(os.environ.get("TAGS_CSV",      str(_HERE / "db" / "tags.csv")))
+BOOK_TAGS_CSV = Path(os.environ.get("BOOK_TAGS_CSV", str(_HERE / "db" / "book_tags.csv")))
 
 # ── Connection factory ─────────────────────────────────────────────────────────
 

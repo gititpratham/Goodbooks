@@ -15,10 +15,10 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # Data paths — overridden by docker-compose volumes
-ENV DB_PATH=/app/storage/goodbooks.db
-ENV BOOKS_CSV=/app/rawdb/goodbooks10/books.csv
-ENV TAGS_CSV=/app/rawdb/goodbooks10/tags.csv
-ENV BOOK_TAGS_CSV=/app/rawdb/goodbooks10/book_tags.csv
+ENV DB_PATH=/app/backend/storage/goodbooks.db
+ENV BOOKS_CSV=/app/backend/db/books.csv
+ENV TAGS_CSV=/app/backend/db/tags.csv
+ENV BOOK_TAGS_CSV=/app/backend/db/book_tags.csv
 
 EXPOSE 8000
 

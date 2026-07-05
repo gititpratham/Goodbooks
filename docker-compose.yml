@@ -7,14 +7,13 @@ services:
       dockerfile: Dockerfile
     container_name: shelfmatch-backend
     volumes:
-      - ./db:/app/rawdb:ro
       # Mount a volume for the SQLite database so it persists across container restarts
-      - shelfmatch-data:/app/storage
+      - shelfmatch-data:/app/backend/storage
     environment:
-      - DB_PATH=/app/storage/goodbooks.db
-      - BOOKS_CSV=/app/rawdb/goodbooks10/books.csv
-      - TAGS_CSV=/app/rawdb/goodbooks10/tags.csv
-      - BOOK_TAGS_CSV=/app/rawdb/goodbooks10/book_tags.csv
+      - DB_PATH=/app/backend/storage/goodbooks.db
+      - BOOKS_CSV=/app/backend/db/books.csv
+      - TAGS_CSV=/app/backend/db/tags.csv
+      - BOOK_TAGS_CSV=/app/backend/db/book_tags.csv
     ports:
       - "8000:8000"
     restart: unless-stopped
