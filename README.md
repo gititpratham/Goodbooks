@@ -1,125 +1,73 @@
-# BookVerse - Smart Book Recommendation Service
+# SHELF/MATCH — Book Recommendation Service
 
-BookVerse is a full-stack, containerized **Book Recommendation and Matching Service** designed to help readers explore a catalog of 10,000 popular books and receive highly tailored suggestions. 
+**Author**: Suvidha Air  
+**Submission For**: Recruitment Project 2026 — "Matching / Recommendation Service"  
+**Deadline**: 8th July 2026  
 
-It provides two recommendation pathways:
-1. **Item-to-Item Recommendations**: Suggests similar books based on the content of a selected book (e.g. "Readers also enjoyed").
-2. **AI Preference Matching (Wizard)**: Uses a custom form to match reader-selected genres, keywords/mood, and minimum ratings to corresponding books.
+## The "Why"
+As per the Project 2026 requirements, this application fulfills the need for a **"Matching or suggestion-based application"** where users input their preferences, and the system matches their data against a catalog to provide multiple tailored results. 
 
----
+Instead of a standard movie or dating app, this project implements a **Book Recommendation Engine** (SHELF/MATCH) based on the **Goodbooks-10K** dataset. It demonstrates the ability to handle large data relationships (10,000 books, 34,000+ tags, ~1 million tag linkages) and distill them into a responsive, intuitive interface.
 
-## 🌟 Why This Project?
+## The "What"
+**SHELF/MATCH** is a full-stack containerized web application that functions like a digital librarian:
+1. **Intake Form**: Users select their preferred Genres, reading Moods, maximum Page Count, and Format.
+2. **Recommendation Engine**: A custom Python backend cross-references these inputs against a curated SQLite database, applying a weighted ranking algorithm based on tag intersections, average rating, and popularity.
+3. **Shortlist**: The user is presented with a personalized shortlist of book cards, highlighting their match percentage and the specific traits that aligned with their request.
 
-We chose a content-based recommendation system on the **Goodbooks-10k Extended** dataset for several key reasons:
-- **No Cold-Start Problem**: Collaborative filtering models struggle with new items/users who have no ratings. Content-based filtering uses metadata (synopsis, author, genres), meaning every book can be recommended immediately upon insertion.
-- **Explainability**: Recommendations are calculated mathematically via text similarity (TF-IDF), making the output easy to justify and explain to users (e.g. "recommended because it shares similar themes of space battles and science fiction").
-- **Efficiency and Scalability**: Training a text-similarity matrix on 10,000 books takes less than a second on startup, and calculating recommendations is near-instantaneous (under 10ms), running smoothly in resource-constrained Docker containers without GPU overhead.
+### Technology Stack
+- **Frontend**: React + TypeScript (Vite), styled with raw CSS for a bespoke, brutalist/editorial aesthetic.
+- **Backend**: Python 3.11 with FastAPI and SQLite.
+- **Infrastructure**: Fully Dockerized (multi-stage builds) and orchestrated with `docker-compose`.
 
----
+## The "How" (Architecture & Logic)
+The system is divided into two decoupled services communicating via a REST API:
 
-## 🛠️ Technology Stack
+### 1. Data Engineering & Backend (Python/FastAPI)
+The core logic resides in `backend/recommender.py` and `backend/database.py`.
+- **Seeding**: On first boot, the backend reads raw CSV files (`books_enriched.csv`, `tags.csv`, `book_tags.csv`) and seeds a WAL-mode SQLite database. The `book_tags` table contains nearly 1 million rows and is streamed in batches for memory efficiency.
+- **Mapping**: User-friendly UI concepts (like the "Cozy" mood or "Sci-Fi" genre) are mapped under the hood to highly specific, community-driven Goodreads tags (e.g., "space-opera", "cyberpunk", "feel-good", "wholesome").
+- **Scoring**: When a request is made, the backend performs SQL `LEFT JOIN` aggregations on the tag counts. Books are scored using a normalized formula:
+  - 50% Genre match strength
+  - 25% Mood match strength
+  - 17% Quality (Average Rating)
+  - 8% Popularity (Ratings Count)
 
-The project is structured with a strict physical and logical separation between components, communicating solely via standard REST APIs:
-
-- **Frontend**: Pure **Vanilla TypeScript** compiled to modern ES Modules (`tsc`), with a custom responsive **Glassmorphism dark theme** styled in Vanilla CSS. No heavy UI frameworks (React/Vue/etc.) or bundlers (Vite) are used, resulting in extremely fast page load times and zero runtime client overhead.
-- **Web Server**: **Nginx** (Alpine-based) containerized to serve static HTML, CSS, and compiled JS files.
-- **Backend API**: **FastAPI** (Python 3.11) with **SQLAlchemy** ORM. FastAPI was chosen for its high performance, native async support, automated OpenAPI (Swagger) documentation, and built-in type validation via Pydantic.
-- **Recommendation Engine**: Built with **scikit-learn** and **pandas**. It creates text profiles for all books, computes a TF-IDF matrix, and utilizes cosine similarity (linear kernel) for similarity calculations.
-- **Database**: **PostgreSQL 15** (Alpine-based) running in its own dedicated container, persisting data via named volumes.
-- **Orchestration**: **Docker Compose** managing separate container builds and networks.
-
----
-
-## 🏗️ Architecture & Network Data Flow
-
-The containers communicate over a custom Docker bridge network called `goodbooks-network`:
-
-```mermaid
-graph TD
-    User([Browser Client]) <-->|Port 3000| Nginx[frontend: Nginx Container]
-    User <-->|Port 8000| FastAPI[backend: FastAPI Container]
-    FastAPI <-->|Internal Port 5432| Postgres[(db: PostgreSQL Container)]
-    
-    subgraph Custom Docker Bridge Network: goodbooks-network
-        Nginx
-        FastAPI
-        Postgres
-    end
-```
-
-1. The user visits `http://localhost:3000`, which Nginx serves from Nginx's static folder.
-2. The browser executes the compiled Vanilla TypeScript script, which sends HTTP requests directly to the FastAPI backend API at `http://localhost:8000`.
-3. FastAPI queries PostgreSQL internally on port `5432` to retrieve and write data.
+### 2. Frontend (React/TypeScript)
+The UI is a single-page React application served by Nginx.
+- State is managed natively with React hooks (`useState`), collecting inputs across interactive tile components and range sliders.
+- API requests are proxied through Nginx (`/api/recommend` -> `backend:8000`), avoiding CORS issues and ensuring a secure, production-ready architecture.
+- The interface is fully responsive, prioritizing accessibility and immediate visual feedback.
 
 ---
 
-## 📊 Data Preparation & Sourcing
+## Running the Application (Plug and Play)
 
-- **Declared Source**: The dataset is sourced from the [Goodbooks-10k Extended Github Repository](https://github.com/malcolmosh/goodbooks-10k-extended), which enriches Zygmunt Zając's original Goodbooks-10k dataset with descriptions, pages, publish dates, and top-shelf genre categories.
-- **Database Seeding**: On container startup, the FastAPI application automatically detects if the database is empty. If it is, it parses `backend/data/books_enriched.csv` using `pandas`, handles NaN values (e.g. substituting empty strings for descriptions, setting pages to 0), drops duplicates on `book_id`, and batch-inserts the 10,000 cleaned book objects into PostgreSQL in chunks of 1000.
-- **Feature Engineering**: To compute similarities, we build a weighted metadata document for each book:
-  $$\text{Document} = \text{Title} \times 2 + \text{Authors} \times 2 + \text{Genres} \times 2 + \text{Description}$$
-  Repeating titles, authors, and genres increases their term frequencies (TF), giving them higher priority weight in cosine similarity than matches inside the long synopsis descriptions.
-
----
-
-## ⚡ Plug-and-Play Setup (Docker Compose)
+This project is configured to run instantly via Docker Compose.
 
 ### Prerequisites
-- Docker and Docker Compose installed.
-- Ensure ports `3000` and `8000` are free on your host machine.
+- Docker
+- Docker Compose
 
-### Run Instructions
-1. Clone the repository and navigate to the project directory:
+### Start the Services
+1. Clone or extract the repository.
+2. Open a terminal in the root directory (where `docker-compose.yml` is located).
+3. Run the following command:
    ```bash
-   git clone https://github.com/gititpratham/Goodbooks.git
-   cd Goodbooks
+   docker-compose up --build
    ```
-2. Build and run the multi-container application:
-   ```bash
-   docker compose up --build
-   ```
-3. Open your browser and navigate to:
-   - **Frontend App**: [http://localhost:3000](http://localhost:3000)
-   - **Interactive API Documentation (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+4. **Important**: On the very first run, the Python backend will spend ~30-60 seconds seeding the 1 million tag relationships into the SQLite database. The frontend is available immediately, but API requests will wait until the database is ready.
+5. Open your browser and navigate to: **http://localhost**
 
-*Note: On first startup, the backend container waits for PostgreSQL to accept connections, initializes the schema, and inserts 10,000 books. This seeding process may take 10-15 seconds. You can track progress in the terminal logs.*
+### Stop the Services
+```bash
+docker-compose down
+```
+*(The SQLite database is stored in a persistent Docker volume, so subsequent startups will be instantaneous).*
 
----
-
-## 📡 API Reference Endpoints
-
-### 1. Catalog & Metadata
-- **`GET /health`**
-  - Simple health check.
-- **`GET /api/genres`**
-  - Returns a sorted list of all unique genres parsed from the database.
-- **`GET /api/books`**
-  - Query parameters:
-    - `page` (default 1): Page number.
-    - `limit` (default 20): Items per page.
-    - `search`: Filter by Title or Author name (case-insensitive substring).
-    - `genre`: Filter by genre tag.
-  - Returns: `{ total, page, limit, books: [...] }`
-
-### 2. Recommendations
-- **`POST /api/recommend/by-book`**
-  - Request body:
-    ```json
-    {
-      "book_id": 1,
-      "limit": 10
-    }
-    ```
-  - Returns: 10 books most similar to the selected book based on content profile.
-- **`POST /api/recommend/by-preferences`**
-  - Request body:
-    ```json
-    {
-      "genres": ["Fantasy", "Science Fiction"],
-      "keywords": "space battle stars magic",
-      "min_rating": 3.8,
-      "limit": 12
-    }
-    ```
-  - Returns: Highly matching books. If filters are too strict, it fills the remainder with popular, highly-rated books to ensure a smooth user experience.
+## Directory Structure
+- `/frontend`: React + TypeScript source code, Vite config, and Nginx setup.
+- `/backend`: Python FastAPI source, Pydantic models, SQLite schema, and Recommender logic.
+- `/data`: Enriched dataset containing book metadata and NLP-generated descriptions.
+- `/db/goodbooks10`: Raw tag data from the original Goodbooks-10k Kaggle dataset.
+- `/eda`: Exploratory Data Analysis notebooks, reports, and original Python ML models documenting the data engineering phase.

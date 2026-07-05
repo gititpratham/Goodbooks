@@ -1,33 +1,49 @@
-from sqlalchemy import Column, Integer, String, Float, Text
-from database import Base
+"""
+models.py — Pydantic request/response models for SHELF/MATCH API
+"""
 
-class Book(Base):
-    __tablename__ = "books"
+from __future__ import annotations
 
-    id = Column(Integer, primary_key=True, index=True)
-    book_id = Column(Integer, unique=True, index=True)
-    title = Column(String(255), nullable=False)
-    authors = Column(Text, nullable=False)  # Stores string representation of authors list
-    average_rating = Column(Float, default=0.0)
-    description = Column(Text, nullable=True)
-    genres = Column(Text, nullable=True)  # Stores string representation of genres list
-    image_url = Column(Text, nullable=True)
-    pages = Column(Integer, nullable=True)
-    publish_date = Column(Text, nullable=True)
-    ratings_count = Column(Integer, default=0)
+from typing import List, Optional
+from pydantic import BaseModel, Field
 
-    def to_dict(self):
-        """Converts the Book model instance to a dictionary."""
-        return {
-            "id": self.id,
-            "book_id": self.book_id,
-            "title": self.title,
-            "authors": self.authors,
-            "average_rating": self.average_rating,
-            "description": self.description,
-            "genres": self.genres,
-            "image_url": self.image_url,
-            "pages": self.pages,
-            "publish_date": self.publish_date,
-            "ratings_count": self.ratings_count,
-        }
+
+class RecommendRequest(BaseModel):
+    """Payload sent by the frontend intake form."""
+
+    genres: List[str] = Field(default_factory=list, description="Selected genre labels")
+    moods: List[str] = Field(default_factory=list, description="Selected mood labels")
+    maxPages: int = Field(default=900, ge=0, description="Maximum page count (900 = no limit)")
+    format: str = Field(default="any", description="Preferred reading format")
+
+
+class BookResult(BaseModel):
+    """Single book recommendation returned to the frontend."""
+
+    title: str
+    author: str
+    genres: List[str]
+    moods: List[str]
+    pages: Optional[int]
+    formats: List[str]
+    pitch: str
+    match: int = Field(ge=0, le=100, description="Match percentage 0-100")
+    average_rating: float
+    ratings_count: int
+    image_url: str
+    pub_year: Optional[int]
+
+
+class RecommendResponse(BaseModel):
+    """Full API response from POST /api/recommend."""
+
+    books: List[BookResult]
+    count: int
+    query: RecommendRequest
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    db_seeded: bool
+    book_count: int

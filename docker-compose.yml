@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shelfmatch-backend
+    volumes:
+      - ./db:/app/rawdb:ro
+      # Mount a volume for the SQLite database so it persists across container restarts
+      - shelfmatch-data:/app/storage
+    environment:
+      - DB_PATH=/app/storage/goodbooks.db
+      - BOOKS_CSV=/app/rawdb/goodbooks10/books.csv
+      - TAGS_CSV=/app/rawdb/goodbooks10/tags.csv
+      - BOOK_TAGS_CSV=/app/rawdb/goodbooks10/book_tags.csv
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - shelfmatch-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: shelfmatch-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - shelfmatch-net
+
+volumes:
+  shelfmatch-data:
+    name: shelfmatch-data
+
+networks:
+  shelfmatch-net:
+    name: shelfmatch-net
+    driver: bridge

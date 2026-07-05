@@ -1,232 +1,152 @@
-import os
-import ast
+"""
+main.py — SHELF/MATCH FastAPI application entry point.
+
+Run locally (from backend/ directory):
+    pip install -r requirements.txt
+    uvicorn main:app --reload --port 8000
+
+Endpoints
+---------
+GET  /api/health          Health check + seeding status
+POST /api/recommend       Main recommendation endpoint
+GET  /api/options/genres  List available genre options
+GET  /api/options/moods   List available mood options
+"""
+
+from __future__ import annotations
+
 import logging
+import threading
 from contextlib import asynccontextmanager
-import pandas as pd
-from fastapi import FastAPI, Depends, HTTPException, Query, status
+from typing import List
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 
-from database import wait_for_db, get_db, Base, engine, SessionLocal
-from models import Book
-from recommender import BookRecommender
+from database import create_schema, get_connection, is_seeded, seed
+from models import BookResult, HealthResponse, RecommendRequest, RecommendResponse
+from recommender import GENRE_TAG_MAP, MOOD_TAG_MAP, get_recommendations
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("shelfmatch")
 
-# Global Recommender Instance
-recommender = BookRecommender()
+# ── Shared state ──────────────────────────────────────────────────────────────
+_db_ready = threading.Event()   # set once seeding finishes
+_seed_error: str | None = None  # populated if seeding fails
 
-def seed_database(db: Session):
-    """
-    Seeds the database with books from the books_enriched.csv file if the books table is empty.
-    Uses pandas for fast parsing and batch inserts to PostgreSQL.
-    """
+
+# ── Lifespan ──────────────────────────────────────────────────────────────────
+
+def _seed_worker() -> None:
+    """Background thread: create schema + seed if needed."""
+    global _seed_error
     try:
-        book_count = db.query(Book).count()
-        if book_count > 0:
-            logger.info(f"Database already contains {book_count} books. Seeding skipped.")
-            return
+        conn = get_connection()
+        create_schema(conn)
+        if not is_seeded(conn):
+            log.info("Database is empty — starting seed (may take 1–2 min on first run) …")
+            seed(conn)
+        else:
+            n = conn.execute("SELECT COUNT(*) AS c FROM books").fetchone()["c"]
+            log.info("Database already seeded (%d books). Ready.", n)
+        conn.close()
+    except Exception as exc:
+        _seed_error = str(exc)
+        log.exception("Seeding failed: %s", exc)
+    finally:
+        _db_ready.set()
 
-        csv_path = os.path.join(os.path.dirname(__file__), "data", "books_enriched.csv")
-        logger.info(f"Seeding database from CSV: {csv_path}")
-        
-        if not os.path.exists(csv_path):
-            logger.error(f"CSV file not found at {csv_path}!")
-            return
-
-        # Load CSV using pandas
-        df = pd.read_csv(csv_path)
-        # Drop duplicates on book_id
-        df = df.drop_duplicates(subset=["book_id"])
-        
-        # Fill NaN values with defaults
-        df["title"] = df["title"].fillna(df["original_title"]).fillna("Unknown Title")
-        df["authors"] = df["authors"].fillna("[]")
-        df["average_rating"] = df["average_rating"].fillna(0.0)
-        df["description"] = df["description"].fillna("")
-        df["genres"] = df["genres"].fillna("[]")
-        df["image_url"] = df["image_url"].fillna("")
-        df["pages"] = df["pages"].fillna(0).astype(int)
-        df["publishDate"] = df["publishDate"].fillna("Unknown")
-        df["ratings_count"] = df["ratings_count"].fillna(0).astype(int)
-
-        books_to_insert = []
-        for _, row in df.iterrows():
-            book = Book(
-                book_id=int(row["book_id"]),
-                title=str(row["title"]),
-                authors=str(row["authors"]),
-                average_rating=float(row["average_rating"]),
-                description=str(row["description"]),
-                genres=str(row["genres"]),
-                image_url=str(row["image_url"]),
-                pages=int(row["pages"]),
-                publish_date=str(row["publishDate"]),
-                ratings_count=int(row["ratings_count"])
-            )
-            books_to_insert.append(book)
-
-        # Batch insert using SQLAlchemy
-        logger.info(f"Inserting {len(books_to_insert)} records into PostgreSQL...")
-        batch_size = 1000
-        for i in range(0, len(books_to_insert), batch_size):
-            db.bulk_save_objects(books_to_insert[i:i+batch_size])
-            db.commit()
-            logger.info(f"Inserted batch {i // batch_size + 1}")
-            
-        logger.info("Database seeding completed successfully.")
-    except Exception as e:
-        logger.error(f"Error seeding database: {str(e)}")
-        db.rollback()
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    FastAPI lifespan manager.
-    Handles startup sequence: Wait for DB -> Init tables -> Seed DB -> Fit Recommender.
-    """
-    logger.info("Starting up Book Recommendation Service...")
-    # 1. Wait for database connection
-    wait_for_db()
-    
-    # 2. Create tables
-    Base.metadata.create_all(bind=engine)
-    
-    # 3. Seed database
-    db = SessionLocal()
-    try:
-        seed_database(db)
-        
-        # 4. Fetch all books from DB and fit recommender
-        logger.info("Loading books from database into recommender...")
-        books = db.query(Book).all()
-        books_dicts = [b.to_dict() for b in books]
-        recommender.fit(books_dicts)
-    finally:
-        db.close()
-        
+async def lifespan(_app: FastAPI):
+    # Kick off seeding in a daemon thread so the HTTP server starts immediately
+    t = threading.Thread(target=_seed_worker, daemon=True, name="seeder")
+    t.start()
     yield
-    logger.info("Shutting down Book Recommendation Service...")
+    # shutdown — nothing to clean up for SQLite
+
+
+# ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Book Recommendation API",
-    description="A content-based book recommendation service using TF-IDF and Cosine Similarity.",
+    title="SHELF/MATCH — Book Recommendation API",
     version="1.0.0",
-    lifespan=lifespan
+    description="Hybrid tag-based book recommendation engine built on Goodbooks-10K.",
+    lifespan=lifespan,
 )
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify frontend origin
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],     # Nginx proxy handles origins in production
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
-# Pydantic schemas for requests
-class BookRecommendRequest(BaseModel):
-    book_id: int = Field(..., description="ID of the book to get recommendations for")
-    limit: int = Field(10, ge=1, le=50, description="Number of recommendations to return")
 
-class PreferenceRecommendRequest(BaseModel):
-    genres: list[str] = Field(default=[], description="List of preferred genres")
-    keywords: str = Field(default="", description="Keywords, tags, or mood keywords")
-    min_rating: float = Field(0.0, ge=0.0, le=5.0, description="Minimum average rating")
-    limit: int = Field(10, ge=1, le=50, description="Number of recommendations to return")
+# ── Routes ────────────────────────────────────────────────────────────────────
 
-@app.get("/health", tags=["System"])
-def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+@app.get("/api/health", response_model=HealthResponse, tags=["meta"])
+def health() -> HealthResponse:
+    """Quick health check that reports DB seeding status."""
+    try:
+        conn = get_connection()
+        seeded = is_seeded(conn)
+        count  = conn.execute("SELECT COUNT(*) AS c FROM books").fetchone()["c"] if seeded else 0
+        conn.close()
+    except Exception:
+        seeded, count = False, 0
 
-@app.get("/api/genres", tags=["Books"])
-def get_genres(db: Session = Depends(get_db)):
-    """Extracts and returns a unique sorted list of all genres in the database."""
-    books = db.query(Book.genres).all()
-    unique_genres = set()
-    for row in books:
-        if row[0]:
-            try:
-                # Convert string list e.g. "['fiction', 'fantasy']" to python list
-                genres_list = ast.literal_eval(row[0])
-                if isinstance(genres_list, list):
-                    for genre in genres_list:
-                        unique_genres.add(genre.strip().title())
-            except Exception:
-                continue
-    return sorted(list(unique_genres))
+    return HealthResponse(
+        status="ok",
+        service="SHELF/MATCH API",
+        db_seeded=seeded,
+        book_count=count,
+    )
 
-@app.get("/api/books", tags=["Books"])
-def list_books(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    search: str = Query("", description="Search by title or authors"),
-    genre: str = Query("", description="Filter by genre"),
-    db: Session = Depends(get_db)
-):
-    """Retrieves a paginated, filterable list of books from the catalog."""
-    query = db.query(Book)
-    
-    if search:
-        search_filter = f"%{search}%"
-        query = query.filter(
-            Book.title.ilike(search_filter) | Book.authors.ilike(search_filter)
-        )
-        
-    if genre:
-        genre_filter = f"%'{genre.lower()}'%"
-        query = query.filter(Book.genres.ilike(genre_filter))
-        
-    total_count = query.count()
-    
-    # Sort by ratings count (popularity) as default
-    query = query.order_by(Book.ratings_count.desc())
-    
-    offset = (page - 1) * limit
-    books = query.offset(offset).limit(limit).all()
-    
-    return {
-        "total": total_count,
-        "page": page,
-        "limit": limit,
-        "books": [b.to_dict() for b in books]
-    }
 
-@app.get("/api/books/{book_id}", tags=["Books"])
-def get_book(book_id: int, db: Session = Depends(get_db)):
-    """Retrieves details of a single book by its ID."""
-    book = db.query(Book).filter(Book.book_id == book_id).first()
-    if not book:
+@app.post("/api/recommend", response_model=RecommendResponse, tags=["recommend"])
+def recommend(req: RecommendRequest) -> RecommendResponse:
+    """
+    Return up to 12 book recommendations ranked by match score.
+
+    The score weights are:
+    - Genre tag match  50 %
+    - Mood  tag match  25 %
+    - Rating quality   17 %
+    - Popularity        8 %
+    """
+    if _seed_error:
+        raise HTTPException(status_code=503, detail=f"Database seeding failed: {_seed_error}")
+
+    if not _db_ready.is_set():
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Book with ID {book_id} not found."
+            status_code=503,
+            detail="Database is being seeded — please try again in a moment.",
         )
-    return book.to_dict()
 
-@app.post("/api/recommend/by-book", tags=["Recommendations"])
-def recommend_by_book(request: BookRecommendRequest):
-    """
-    Returns content-based recommendations for a specific book.
-    """
-    recommendations = recommender.get_recommendations_by_book(
-        book_id=request.book_id,
-        limit=request.limit
-    )
-    return {"recommendations": recommendations}
+    try:
+        conn   = get_connection()
+        books  = get_recommendations(conn, req)
+        conn.close()
+    except Exception as exc:
+        log.exception("Recommendation error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-@app.post("/api/recommend/by-preferences", tags=["Recommendations"])
-def recommend_by_preferences(request: PreferenceRecommendRequest):
-    """
-    Matches user-selected preferences (genres, keywords, minimum rating) to return recommendations.
-    """
-    recommendations = recommender.get_recommendations_by_preferences(
-        genres=request.genres,
-        keywords=request.keywords,
-        min_rating=request.min_rating,
-        limit=request.limit
-    )
-    return {"recommendations": recommendations}
+    return RecommendResponse(books=books, count=len(books), query=req)
+
+
+@app.get("/api/options/genres", response_model=List[str], tags=["options"])
+def list_genres() -> List[str]:
+    """Return the available genre options for the intake form."""
+    return list(GENRE_TAG_MAP.keys())
+
+
+@app.get("/api/options/moods", response_model=List[str], tags=["options"])
+def list_moods() -> List[str]:
+    """Return the available mood options for the intake form."""
+    return list(MOOD_TAG_MAP.keys())
