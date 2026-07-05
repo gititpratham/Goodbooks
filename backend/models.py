@@ -13,8 +13,9 @@ class RecommendRequest(BaseModel):
 
     genres: List[str] = Field(default_factory=list, description="Selected genre labels")
     moods: List[str] = Field(default_factory=list, description="Selected mood labels")
+    minRating: float = Field(default=3.5, ge=0.0, le=5.0, description="Minimum average rating filter")
     maxPages: int = Field(default=900, ge=0, description="Maximum page count (900 = no limit)")
-    format: str = Field(default="any", description="Preferred reading format")
+    pubEra: str = Field(default="any", description="Publication era: 'recent' (>=2000), 'classic' (<1980), 'any'")
 
 
 class BookResult(BaseModel):
@@ -22,11 +23,9 @@ class BookResult(BaseModel):
 
     title: str
     author: str
-    genres: List[str]
-    moods: List[str]
-    pages: Optional[int]
-    formats: List[str]
-    pitch: str
+    genres: List[str]        # matched tag-based genres for display chips
+    moods: List[str]         # matched mood labels for display chips
+    pitch: str               # short description / pitch text
     match: int = Field(ge=0, le=100, description="Match percentage 0-100")
     average_rating: float
     ratings_count: int

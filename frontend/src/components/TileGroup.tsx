@@ -33,16 +33,13 @@ export default function TileGroup({
           <label
             key={opt}
             className={`tile${mode === 'single' ? ' radio' : ''}${isSelected ? ' selected' : ''}`}
-            onClick={() => onToggle(opt)}
           >
             <input
               type={mode === 'single' ? 'radio' : 'checkbox'}
               name={group}
               value={opt}
               checked={isSelected}
-              onChange={() => {
-                /* controlled via onClick — onChange suppresses React warning */
-              }}
+              onChange={() => onToggle(opt)}
               aria-label={opt}
             />
             <span className="mark" />

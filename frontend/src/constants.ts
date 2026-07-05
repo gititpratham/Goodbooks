@@ -1,4 +1,4 @@
-/** Static option lists matching the backend GENRE_TAG_MAP / MOOD_TAG_MAP keys. */
+/** Static option lists matching the backend tag map keys. */
 
 export const GENRES: readonly string[] = [
   'Fantasy',
@@ -10,6 +10,8 @@ export const GENRES: readonly string[] = [
   'Non-Fiction',
   'Thriller',
   'Historical',
+  'Young Adult',
+  'Graphic Novel',
 ]
 
 export const MOODS: readonly string[] = [
@@ -23,6 +25,11 @@ export const MOODS: readonly string[] = [
   'Unsettling',
 ]
 
-export const FORMATS: readonly string[] = ['Physical', 'E-book', 'Audiobook']
+export const PUB_ERAS: readonly { value: string; label: string }[] = [
+  { value: 'any',     label: 'Any Era'                   },
+  { value: 'recent',  label: 'Recent  (2000 → now)'      },
+  { value: 'classic', label: 'Classic (pre-1980)'         },
+]
 
-export const DEFAULT_MAX_PAGES = 450
+export const DEFAULT_MIN_RATING = 3.5
+export const DEFAULT_MAX_PAGES  = 900   // 900 = "no limit" sentinel

@@ -1,12 +1,10 @@
-/** Shared TypeScript types across the frontend. */
+/** Shared TypeScript types — mirrors Python Pydantic models exactly. */
 
 export interface BookResult {
   title: string
   author: string
   genres: string[]
   moods: string[]
-  pages: number | null
-  formats: string[]
   pitch: string
   match: number
   average_rating: number
@@ -18,8 +16,9 @@ export interface BookResult {
 export interface RecommendRequest {
   genres: string[]
   moods: string[]
+  minRating: number
   maxPages: number
-  format: string
+  pubEra: 'any' | 'recent' | 'classic'
 }
 
 export interface RecommendResponse {
