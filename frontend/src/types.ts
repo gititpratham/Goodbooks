@@ -19,6 +19,7 @@ export interface RecommendRequest {
   minRating: number
   maxPages: number
   pubEra: 'any' | 'recent' | 'classic'
+  popularity: 'popular' | 'underrated'
 }
 
 export interface RecommendResponse {

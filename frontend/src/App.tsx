@@ -1,6 +1,6 @@
 /**
  * App.tsx — Main application component.
- * Form: Genre (multi), Mood (multi), Min Rating (slider), Max Pages (slider), Pub Era (tiles).
+ * Form: Genre (multi), Mood (multi), Min Rating (slider), Book Runtime (tiles), Pub Era (tiles).
  * Results: top-3 or all ≥90% match, pulled live from the FastAPI backend.
  */
 
@@ -176,17 +176,17 @@ export default function App() {
             </div>
           </fieldset>
 
-          {/* 04 — Max Length */}
+          {/* 04 — Book Runtime */}
           <fieldset>
-            <legend>Length</legend>
+            <legend>Book Runtime</legend>
             <div className="section-label">
               <span className="num">04</span>
-              <h2>Length</h2>
+              <h2>Book Runtime</h2>
               <span className="rule" />
             </div>
             <div className="field-block">
               <div className="field-title">
-                Max page count <span className="field-hint">— drag right for no limit</span>
+                How long do you want to read? <span className="field-hint">— select one</span>
               </div>
               <LengthSlider value={maxPages} onChange={setMaxPages} />
             </div>
@@ -244,7 +244,12 @@ export default function App() {
               {selectedMoods.size > 0 ? Array.from(selectedMoods).join(', ') : 'ANY MOOD'}
               {' · '}
               MIN ★{minRating.toFixed(1)}
-              {maxPages < 900 ? ` · MAX ${maxPages}PP` : ''}
+              {' · '}
+              {maxPages >= 9999
+                ? 'No Limit'
+                : maxPages >= 750
+                  ? '15+ HRS'
+                  : `${maxPages / 50} ${maxPages / 50 === 1 ? 'HR' : 'HRS'}`}
             </div>
           </div>
 

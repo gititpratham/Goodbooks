@@ -167,6 +167,12 @@ legend    { position: absolute; left: -9999px; }
   border: 3px solid var(--ink); padding: 16px;
   box-shadow: 4px 4px 0 var(--ink);
 }
+.runtime-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
 input[type="range"] {
   flex: 1; -webkit-appearance: none;
   height: 6px; background: var(--ink); outline: none;
@@ -182,6 +188,36 @@ input[type="range"]::-moz-range-thumb {
 .range-val {
   font-family: 'Archivo Black'; font-size: 16px;
   min-width: 96px; text-align: right;
+}
+
+/* Runtime tiles (Book Runtime section) */
+.runtime-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.runtime-tile {
+  font-family: 'Archivo Black', monospace;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 3px solid var(--ink);
+  background: var(--paper);
+  padding: 12px 20px;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 var(--ink);
+  transition: transform .08s ease, box-shadow .08s ease;
+  user-select: none;
+}
+.runtime-tile:hover {
+  transform: translate(-2px,-2px);
+  box-shadow: 6px 6px 0 var(--ink);
+}
+.runtime-tile.selected {
+  background: var(--ink);
+  color: var(--paper);
+  transform: translate(-2px,-2px);
+  box-shadow: 6px 6px 0 var(--red);
 }
 
 /* Submit row */

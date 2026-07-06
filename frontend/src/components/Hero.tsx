@@ -6,9 +6,9 @@ export default function Hero() {
         <div>
           <span className="eyebrow">No genres skipped. No guessing.</span>
           <h1 className="display">
-            TELL US<br />
-            WHAT YOU<br />
-            <span className="accent">WANT TO READ.</span>
+            GET THE<br />
+            BEST BOOK<br />
+            <span className="accent">RECOMMENDED.</span>
           </h1>
           <p className="hero-sub">
             Fill out the intake form below exactly like you'd fill out a

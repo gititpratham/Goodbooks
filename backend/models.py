@@ -14,7 +14,7 @@ class RecommendRequest(BaseModel):
     genres: List[str] = Field(default_factory=list, description="Selected genre labels")
     moods: List[str] = Field(default_factory=list, description="Selected mood labels")
     minRating: float = Field(default=3.5, ge=0.0, le=5.0, description="Minimum average rating filter")
-    maxPages: int = Field(default=900, ge=0, description="Maximum page count (900 = no limit)")
+    maxPages: int = Field(default=9999, ge=0, description="Maximum page count (9999 = no limit)")
     pubEra: str = Field(default="any", description="Publication era: 'recent' (>=2000), 'classic' (<1980), 'any'")
 
 

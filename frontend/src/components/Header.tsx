@@ -6,7 +6,7 @@ export default function Header() {
         <div className="logo display">
           SHELF<span>/</span>MATCH
         </div>
-        <div className="tag">v2.0 — reader intake form</div>
+        <div className="tag">GET THE BEST RECOMMENDATION</div>
       </div>
     </header>
   )

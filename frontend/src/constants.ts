@@ -26,10 +26,11 @@ export const MOODS: readonly string[] = [
 ]
 
 export const PUB_ERAS: readonly { value: string; label: string }[] = [
-  { value: 'any',     label: 'Any Era'                   },
-  { value: 'recent',  label: 'Recent  (2000 → now)'      },
-  { value: 'classic', label: 'Classic (pre-1980)'         },
+  { value: 'any',     label: 'Any Era'              },
+  { value: 'recent',  label: 'Recent  (2000 → now)' },
+  { value: 'classic', label: 'Classic (pre-1980)'   },
 ]
 
 export const DEFAULT_MIN_RATING = 3.5
-export const DEFAULT_MAX_PAGES  = 900   // 900 = "no limit" sentinel
+/** 9999 = "No Limit" sentinel — backend treats maxPages >= 9999 as unlimited */
+export const DEFAULT_MAX_PAGES  = 9999

@@ -88,8 +88,9 @@ _GENRE_DISPLAY: dict[str, str] = {
 }
 
 # Empirical constants — max observed genre/mood cumulative tag counts in goodbooks-10k
-_MAX_GENRE_SCORE = 900_000.0
-_MAX_MOOD_SCORE  = 250_000.0
+# Tightened so that mid-tier tag matches (not just Harry Potter) score above 0.3+
+_MAX_GENRE_SCORE = 300_000.0
+_MAX_MOOD_SCORE  = 80_000.0
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -167,23 +168,38 @@ def _compute_raw_score(
     average_rating: float,
     ratings_count: int,
 ) -> float:
-    """Produce a raw 0-1 weighted score for a book."""
+    """Produce a raw 0-1 weighted score for a book.
+
+    genre_score is the per-genre AVERAGE (SQL does the averaging).
+    A book matching all 3 selected genres scores near 1.0; a book
+    matching only 1 of 3 genres scores ~0.33, creating genuine sensitivity.
+
+    Weights:
+        Genre avg strength  60%
+        Mood  tag strength  25%
+        Rating quality      10%
+        Popularity           5%
+    """
     g_norm = min(genre_score / _MAX_GENRE_SCORE, 1.0)
     m_norm = min(mood_score  / _MAX_MOOD_SCORE,  1.0)
     # Quality: normalise 3.5-5 → 0-1
     q_norm = max(0.0, (average_rating - 3.5) / 1.5)
-    # Popularity: log10(count) / 7 (7 ≈ log10(10M))
-    p_norm = min(math.log10(max(ratings_count, 1)) / 7.0, 1.0)
+    # Popularity: log10(count) / 6 — modest influence
+    p_norm = min(math.log10(max(ratings_count, 1)) / 6.0, 1.0)
 
-    return g_norm * 0.55 + m_norm * 0.25 + q_norm * 0.15 + p_norm * 0.05
+    return g_norm * 0.60 + m_norm * 0.25 + q_norm * 0.10 + p_norm * 0.05
 
 
-def _to_match_pct(raw: float, max_raw: float) -> int:
-    """Re-scale a raw score so the best result in the batch ≈ 97%."""
-    if max_raw <= 0:
-        return 50
-    scaled = (raw / max_raw) * 97.0
-    return max(1, min(100, round(scaled)))
+def _to_match_pct(raw: float) -> int:
+    """Convert a raw 0-1 score to a match percentage on an absolute scale.
+
+    Uses a fixed mapping (not relative to the batch max) so that removing a
+    genre genuinely lowers the match % for books that no longer fully qualify.
+    Scale: raw 0.6 → 90%, raw 0.8 → 100%.  Below 0.3 → 45% floor.
+    """
+    # Linear stretch: 0.3–0.8 maps to 45%–100%
+    pct = 45.0 + (raw - 0.3) / 0.5 * 55.0
+    return max(1, min(100, round(pct)))
 
 
 # ── Main recommendation function ───────────────────────────────────────────────
@@ -192,22 +208,48 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
     """
     Return the top-3 books, or all books with match ≥ 90%, whichever is more.
 
-    Scoring weights:
-        Genre tag strength  55%
-        Mood  tag strength  25%
-        Rating quality      15%
-        Popularity           5%
+    Scoring approach (sensitivity-aware):
+        - Build one subquery per selected genre so books are scored on
+          how well they match EACH genre, not just any genre in the pool.
+        - genre_score = average of per-genre scores × genre_coverage_bonus
+          where coverage = fraction of selected genres the book actually has.
+        - This means removing "Graphic Novel" genuinely changes which
+          books bubble to the top.
     """
-    genre_tag_names = [t for g in req.genres for t in GENRE_TAG_MAP.get(g, [])]
     mood_tag_names  = [t for m in req.moods  for t in MOOD_TAG_MAP.get(m, [])]
+    mood_tag_ids    = _resolve_tag_ids(conn, mood_tag_names)
+    no_moods        = len(mood_tag_ids) == 0
 
-    genre_tag_ids = _resolve_tag_ids(conn, genre_tag_names)
-    mood_tag_ids  = _resolve_tag_ids(conn, mood_tag_names)
+    # ── Per-genre subqueries ──────────────────────────────────────────────────
+    per_genre_joins:   list[str]   = []
+    per_genre_selects: list[str]   = []   # column expressions for SELECT
 
-    no_genres = len(genre_tag_ids) == 0
-    no_moods  = len(mood_tag_ids)  == 0
+    for i, genre in enumerate(req.genres):
+        tag_names = GENRE_TAG_MAP.get(genre, [])
+        tag_ids   = _resolve_tag_ids(conn, tag_names)
+        if not tag_ids:
+            continue
+        alias   = f"g{i}"
+        id_str  = ",".join(str(t) for t in tag_ids)
+        per_genre_joins.append(f"""
+        LEFT JOIN (
+            SELECT book_id, SUM(count) AS score
+            FROM book_tags
+            WHERE tag_id IN ({id_str})
+            GROUP BY book_id
+        ) {alias} ON {alias}.book_id = b.id""")
+        per_genre_selects.append(f"COALESCE({alias}.score, 0)")
 
-    # Build LEFT JOIN subqueries only when there are matching tag ids
+    # Combined genre score = average of per-genre scores (normalised by _MAX_GENRE_SCORE)
+    n_genre_aliases = len(per_genre_selects)
+    if n_genre_aliases > 0:
+        genre_avg_expr = "(" + " + ".join(per_genre_selects) + f") / {n_genre_aliases}.0"
+    else:
+        genre_avg_expr = "0"
+
+    no_genres = n_genre_aliases == 0
+
+    # ── Mood subquery ─────────────────────────────────────────────────────────
     def tag_join(ids: list[int], alias: str) -> str:
         if not ids:
             return ""
@@ -220,20 +262,24 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
             GROUP BY book_id
         ) {alias}_tbl ON {alias}_tbl.book_id = b.id"""
 
-    genre_join   = tag_join(genre_tag_ids, "genre_score")
-    mood_join    = tag_join(mood_tag_ids,  "mood_score")
+    mood_join    = tag_join(mood_tag_ids, "mood_score")
+    mood_select  = "COALESCE(mood_score_tbl.mood_score, 0)" if not no_moods else "0"
 
-    genre_select = "COALESCE(genre_score_tbl.genre_score, 0)" if not no_genres else "0"
-    mood_select  = "COALESCE(mood_score_tbl.mood_score, 0)"   if not no_moods  else "0"
-
-    # Hard filters
-    genre_where  = f"AND {genre_select} > 0" if not no_genres else ""
+    # ── Hard filters ──────────────────────────────────────────────────────────
+    # Require that at least ONE genre subquery has a hit (sum > 0)
+    genre_where  = f"AND ({genre_avg_expr}) > 0" if not no_genres else ""
     rating_where = f"AND b.average_rating >= {req.minRating}"
     pub_where    = ""
     if req.pubEra == "recent":
-        pub_where = "AND (b.pub_year IS NULL OR b.pub_year >= 2000)"
+        pub_where = "AND b.pub_year IS NOT NULL AND b.pub_year >= 2000"
     elif req.pubEra == "classic":
-        pub_where = "AND (b.pub_year IS NULL OR b.pub_year < 1980)"
+        pub_where = "AND b.pub_year IS NOT NULL AND b.pub_year < 1980"
+
+    # Build ORDER BY using the same genre_avg_expr
+    order_genre = f"({genre_avg_expr} / {_MAX_GENRE_SCORE}) * 0.60" if not no_genres else "0"
+    order_mood  = f"({mood_select} / {_MAX_MOOD_SCORE}) * 0.25" if not no_moods else "0"
+
+    genre_joins_sql = "\n".join(per_genre_joins)
 
     sql = f"""
         SELECT
@@ -245,10 +291,10 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
             b.pub_year,
             b.image_url,
             b.description,
-            {genre_select} AS genre_score,
-            {mood_select}  AS mood_score
+            ({genre_avg_expr}) AS genre_score,
+            {mood_select}      AS mood_score
         FROM books b
-        {genre_join}
+        {genre_joins_sql}
         {mood_join}
         WHERE 1=1
           {rating_where}
@@ -256,10 +302,10 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
           {genre_where}
         ORDER BY
             (
-                {genre_select} * 0.55 +
-                {mood_select}  * 0.25 +
-                b.average_rating * 10000 +
-                MIN(b.ratings_count, 500000) * 0.01
+                {order_genre} +
+                {order_mood}  +
+                ((b.average_rating - 3.5) / 1.5) * 0.10 +
+                (MIN(CAST(b.ratings_count AS REAL), 1000000.0) / 1000000.0) * 0.05
             ) DESC
         LIMIT 50
     """
@@ -275,14 +321,14 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
     for r in rows:
         raw = _compute_raw_score(
             r["genre_score"], r["mood_score"],
-            r["average_rating"], r["ratings_count"]
+            r["average_rating"], r["ratings_count"],
         )
         scored.append((r, raw))
 
-    max_raw = max(s for _, s in scored)
+    max_raw = max(s for _, s in scored)  # kept for logging / future use
 
-    # Build match percentages
-    with_match = [(r, _to_match_pct(raw, max_raw)) for r, raw in scored]
+    # Build match percentages using absolute scale
+    with_match = [(r, _to_match_pct(raw)) for r, raw in scored]
 
     # Collect book ids for bulk mood/genre lookups
     book_ids = [r["id"] for r, _ in with_match]
@@ -311,9 +357,9 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
             pub_year       = r["pub_year"],
         ))
 
-    # Filter: keep ≥90% match books, but guarantee at least top-3
-    high_match = [b for b in results if b.match >= 90]
-    final = high_match if len(high_match) >= 3 else results[:3]
+    # Filter: keep ≥70% match books, but guarantee at least top-5
+    high_match = [b for b in results if b.match >= 70]
+    final = high_match if len(high_match) >= 5 else results[:5]
 
     return final
 
