@@ -30,6 +30,7 @@ class BookResult(BaseModel):
     match: int = Field(ge=0, le=100, description="Match percentage 0-100")
     average_rating: float
     ratings_count: int
+    pages: Optional[int]
     image_url: str
     pub_year: Optional[int]
 

@@ -17,7 +17,9 @@ const PLACEHOLDER = 'https://via.placeholder.com/160x220/111111/EDEAE0?text=NO+C
 export default function BookCard({ book, rank }: BookCardProps) {
   const year      = book.pub_year ? `${book.pub_year}` : 'YEAR UNKNOWN'
   const ratingStr = `★ ${book.average_rating.toFixed(2)}`
-  const countStr  = book.ratings_count > 1_000
+  const countStr = book.ratings_count > 1_000_000
+    ? `${(book.ratings_count / 1_000_000).toFixed(1)}M ratings`
+    : book.ratings_count > 1_000
     ? `${(book.ratings_count / 1_000).toFixed(0)}K ratings`
     : `${book.ratings_count} ratings`
 
@@ -82,9 +84,9 @@ export default function BookCard({ book, rank }: BookCardProps) {
 
       <div className="divider-stamp" />
 
-      {/* Footer: rating / count / year */}
+      {/* Footer: rating / pages / count / year */}
       <div className="card-foot">
-        <span>{ratingStr} · {countStr}</span>
+        <span>{ratingStr} · {book.pages ? `${book.pages}p` : '?p'} · {countStr}</span>
         <span className="stamp-label">{year}</span>
       </div>
     </div>

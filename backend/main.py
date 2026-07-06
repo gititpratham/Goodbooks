@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import create_schema, get_connection, is_seeded, seed
 from models import HealthResponse, RecommendRequest, RecommendResponse, BookResult
-from recommender import GENRE_TAG_MAP, MOOD_TAG_MAP
+
 from ml_recommender import MLBookRecommender
 
 logging.basicConfig(
@@ -122,6 +122,7 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
                 match=int(max(50, min(100, rb["ml_score"] * 100))), # Convert 0-1 probability to percentage
                 average_rating=rb["average_rating"],
                 ratings_count=rb["ratings_count"],
+                pages=rb["pages"],
                 image_url=rb["image_url"],
                 pub_year=rb["pub_year"]
             ))
@@ -135,9 +136,9 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
 
 @app.get("/api/options/genres", response_model=List[str], tags=["options"])
 def list_genres() -> List[str]:
-    return list(GENRE_TAG_MAP.keys())
+    return ml_model.genre_list if ml_model else []
 
 
 @app.get("/api/options/moods", response_model=List[str], tags=["options"])
 def list_moods() -> List[str]:
-    return list(MOOD_TAG_MAP.keys())
+    return ml_model.mood_list if ml_model else []

@@ -9,6 +9,7 @@ export interface BookResult {
   match: number
   average_rating: number
   ratings_count: number
+  pages: number | null
   image_url: string
   pub_year: number | null
 }
