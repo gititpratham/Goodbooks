@@ -400,5 +400,3 @@ Development scripts kept for reference — **not used by the running app**:
 | `eda/` | EDA output charts (PNG images) |
 
 ---
-
-*Built with love as a Jump Trading Program project.*
