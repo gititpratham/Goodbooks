@@ -17,12 +17,12 @@ import type { BookResult, RecommendRequest } from './types'
 
 export default function App() {
   // ── Form state ──────────────────────────────────────────────────────────────
-  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set())
-  const [selectedMoods,  setSelectedMoods]  = useState<Set<string>>(new Set())
+  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set(['Fantasy', 'Sci-Fi', 'Thriller']))
+  const [selectedMoods,  setSelectedMoods]  = useState<Set<string>>(new Set(['Cozy']))
   const [popularity,     setPopularity]     = useState<'popular' | 'underrated'>('popular')
   const [minRating, setMinRating]           = useState<number>(DEFAULT_MIN_RATING)
   const [maxPages,  setMaxPages]            = useState<number>(DEFAULT_MAX_PAGES)
-  const [pubEra,    setPubEra]              = useState<string>('any')
+  const [pubEra,    setPubEra]              = useState<string>('recent')
 
   // ── Results state ───────────────────────────────────────────────────────────
   const [results,   setResults]   = useState<BookResult[] | null>(null)
@@ -271,9 +271,7 @@ export default function App() {
               {' · '}
               {maxPages >= 9999
                 ? 'No Limit'
-                : maxPages >= 1000
-                  ? '20+ HRS'
-                  : `${maxPages / 50} ${maxPages / 50 === 1 ? 'HR' : 'HRS'}`}
+                : `${maxPages / 50} HRS`}
             </div>
           </div>
 
@@ -288,7 +286,7 @@ export default function App() {
       </main>
 
       <footer>
-        SHELF/MATCH — BOOK RECOMMENDATION ENGINE · POWERED BY GOODBOOKS-10K
+        GOOD/BOOKS — BOOK RECOMMENDATION ENGINE · POWERED BY GOODBOOKS-10K
       </footer>
     </>
   )

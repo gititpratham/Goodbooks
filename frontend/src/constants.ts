@@ -31,6 +31,6 @@ export const PUB_ERAS: readonly { value: string; label: string }[] = [
   { value: 'classic', label: 'Classic (pre-1980)'   },
 ]
 
-export const DEFAULT_MIN_RATING = 3.5
-/** 9999 = "No Limit" sentinel — backend treats maxPages >= 9999 as unlimited */
-export const DEFAULT_MAX_PAGES  = 9999
+export const DEFAULT_MIN_RATING = 4.0
+/** 1500 = 30 HRS */
+export const DEFAULT_MAX_PAGES  = 1500

@@ -13,8 +13,7 @@ export default function Hero() {
           <p className="hero-sub">
             Fill out the intake form below exactly like you'd fill out a
             library request slip. The engine cross-references your answers
-            against the catalog and stamps out a shortlist — no vague "if
-            you liked X" hand-waving.
+            against the catalog and stamps out a shortlist. <strong style={{ fontWeight: 500 }}>Personalized recommendations to help you find your next great read.</strong>
           </p>
         </div>
         <div className="hero-stamp display">

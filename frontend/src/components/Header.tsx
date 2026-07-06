@@ -4,9 +4,9 @@ export default function Header() {
     <header>
       <div className="header-inner">
         <div className="logo display">
-          SHELF<span>/</span>MATCH
+          GOOD<span>/</span>BOOKS
         </div>
-        <div className="tag">GET THE BEST RECOMMENDATION</div>
+        <div className="tag">your next great read is waiting.</div>
       </div>
     </header>
   )

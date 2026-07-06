@@ -8,11 +8,11 @@ interface LengthSliderProps {
 
 export default function LengthSlider({ value, onChange }: LengthSliderProps) {
   const RUNTIME_VALUES = [
-    { hours: 1, pages: 50, label: '1 HR' },
-    { hours: 3, pages: 150, label: '3 HRS' },
-    { hours: 5, pages: 250, label: '5 HRS' },
     { hours: 10, pages: 500, label: '10 HRS' },
-    { hours: 20, pages: 1000, label: '20+ HRS' }
+    { hours: 15, pages: 750, label: '15 HRS' },
+    { hours: 20, pages: 1000, label: '20 HRS' },
+    { hours: 30, pages: 1500, label: '30 HRS' },
+    { hours: 40, pages: 2000, label: '40 HRS' }
   ]
 
   const isNoLimit = value >= 9999
