@@ -19,6 +19,7 @@ export default function App() {
   // ── Form state ──────────────────────────────────────────────────────────────
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set())
   const [selectedMoods,  setSelectedMoods]  = useState<Set<string>>(new Set())
+  const [popularity,     setPopularity]     = useState<'popular' | 'underrated'>('popular')
   const [minRating, setMinRating]           = useState<number>(DEFAULT_MIN_RATING)
   const [maxPages,  setMaxPages]            = useState<number>(DEFAULT_MAX_PAGES)
   const [pubEra,    setPubEra]              = useState<string>('any')
@@ -55,6 +56,7 @@ export default function App() {
       minRating,
       maxPages,
       pubEra:    pubEra as 'any' | 'recent' | 'classic',
+      popularity,
     }
     setLastReq(req)
 
@@ -162,11 +164,33 @@ export default function App() {
             </div>
           </fieldset>
 
+          {/* 02b — Popularity */}
+          <fieldset>
+            <legend>Popularity</legend>
+            <div className="section-label">
+              <span className="num">03</span>
+              <h2>Popularity</h2>
+              <span className="rule" />
+            </div>
+            <div className="field-block">
+              <div className="field-title">
+                Popularity of book <span className="field-hint">— select one</span>
+              </div>
+              <TileGroup
+                options={['Popular', 'Underrated']}
+                selected={new Set([popularity === 'popular' ? 'Popular' : 'Underrated'])}
+                onToggle={val => setPopularity(val === 'Popular' ? 'popular' : 'underrated')}
+                mode="single"
+                group="popularity"
+              />
+            </div>
+          </fieldset>
+
           {/* 03 — Min Rating */}
           <fieldset>
             <legend>Minimum Rating</legend>
             <div className="section-label">
-              <span className="num">03</span>
+              <span className="num">04</span>
               <h2>Min Rating</h2>
               <span className="rule" />
             </div>
@@ -180,7 +204,7 @@ export default function App() {
           <fieldset>
             <legend>Book Runtime</legend>
             <div className="section-label">
-              <span className="num">04</span>
+              <span className="num">05</span>
               <h2>Book Runtime</h2>
               <span className="rule" />
             </div>
@@ -196,7 +220,7 @@ export default function App() {
           <fieldset>
             <legend>Publication Era</legend>
             <div className="section-label">
-              <span className="num">05</span>
+              <span className="num">06</span>
               <h2>Era</h2>
               <span className="rule" />
             </div>
@@ -247,8 +271,8 @@ export default function App() {
               {' · '}
               {maxPages >= 9999
                 ? 'No Limit'
-                : maxPages >= 750
-                  ? '15+ HRS'
+                : maxPages >= 1000
+                  ? '20+ HRS'
                   : `${maxPages / 50} ${maxPages / 50 === 1 ? 'HR' : 'HRS'}`}
             </div>
           </div>

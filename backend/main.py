@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import os
 from contextlib import asynccontextmanager
 from typing import List
 
@@ -13,8 +14,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import create_schema, get_connection, is_seeded, seed
-from models import HealthResponse, RecommendRequest, RecommendResponse
-from recommender import GENRE_TAG_MAP, MOOD_TAG_MAP, get_recommendations
+from models import HealthResponse, RecommendRequest, RecommendResponse, BookResult
+from recommender import GENRE_TAG_MAP, MOOD_TAG_MAP
+from ml_recommender import MLBookRecommender
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,10 +27,10 @@ log = logging.getLogger("shelfmatch")
 
 _db_ready   = threading.Event()
 _seed_error: str | None = None
-
+ml_model = None
 
 def _seed_worker() -> None:
-    global _seed_error
+    global _seed_error, ml_model
     try:
         conn = get_connection()
         create_schema(conn)
@@ -39,9 +41,18 @@ def _seed_worker() -> None:
             n = conn.execute("SELECT COUNT(*) AS c FROM books").fetchone()["c"]
             log.info("Database already seeded (%d books). Ready.", n)
         conn.close()
+        
+        # Load ML model
+        model_path = os.path.join(os.path.dirname(__file__), "model", "recommender_best.joblib")
+        if os.path.exists(model_path):
+            ml_model = MLBookRecommender(model_path)
+            log.info("ML Recommender loaded successfully.")
+        else:
+            log.warning(f"ML Recommender model not found at {model_path}")
+            
     except Exception as exc:
         _seed_error = str(exc)
-        log.exception("Seeding failed: %s", exc)
+        log.exception("Seeding or Model Loading failed: %s", exc)
     finally:
         _db_ready.set()
 
@@ -56,7 +67,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="SHELF/MATCH — Book Recommendation API",
     version="2.0.0",
-    description="Hybrid tag-based book recommendation engine built on Goodbooks-10K.",
+    description="Hybrid ML book recommendation engine built on Goodbooks-10K.",
     lifespan=lifespan,
 )
 
@@ -82,25 +93,39 @@ def health() -> HealthResponse:
 
 @app.post("/api/recommend", response_model=RecommendResponse, tags=["recommend"])
 def recommend(req: RecommendRequest) -> RecommendResponse:
-    """
-    Return top-3 books, or all books with ≥90% match score.
-
-    Scoring weights
-    ---------------
-    Genre tag strength  55 %
-    Mood  tag strength  25 %
-    Rating quality      15 %
-    Popularity           5 %
-    """
     if _seed_error:
-        raise HTTPException(status_code=503, detail=f"Database seeding failed: {_seed_error}")
+        raise HTTPException(status_code=503, detail=f"Startup failed: {_seed_error}")
     if not _db_ready.is_set():
-        raise HTTPException(status_code=503, detail="Database is being seeded — retry in a moment.")
+        raise HTTPException(status_code=503, detail="System starting — retry in a moment.")
+    if not ml_model:
+        raise HTTPException(status_code=503, detail="ML model is not loaded yet.")
 
     try:
-        conn  = get_connection()
-        books = get_recommendations(conn, req)
-        conn.close()
+        raw_books = ml_model.recommend(
+            genres=req.genres,
+            moods=req.moods,
+            min_rating=req.minRating,
+            max_pages=None if req.maxPages >= 9999 else req.maxPages,
+            year_pref=req.pubEra,
+            popularity_pref=req.popularity,
+            n=10
+        )
+        
+        books = []
+        for rb in raw_books:
+            books.append(BookResult(
+                title=rb["title"],
+                author=rb["authors"],
+                genres=eval(rb["genres"]) if isinstance(rb["genres"], str) and rb["genres"].startswith("[") else [],
+                moods=[], # the ML model doesn't directly return matched moods without the explain() method, but we can just use req.moods for display if we want.
+                pitch=rb["description"],
+                match=int(max(50, min(100, rb["ml_score"] * 100))), # Convert 0-1 probability to percentage
+                average_rating=rb["average_rating"],
+                ratings_count=rb["ratings_count"],
+                image_url=rb["image_url"],
+                pub_year=rb["pub_year"]
+            ))
+            
     except Exception as exc:
         log.exception("Recommendation error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

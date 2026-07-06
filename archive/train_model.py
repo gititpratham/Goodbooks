@@ -44,11 +44,10 @@ np.random.seed(42)
 # ─── Paths ─────────────────────────────────────────────────────────
 BASE       = os.path.dirname(os.path.abspath(__file__))
 ROOT       = os.path.join(BASE, "..")
-ARCH       = os.path.join(BASE, "archive")
 
-ENRICHED_PATH = os.path.join(ROOT, "backend", "data", "books_enriched.csv")
-RATINGS_PATH  = os.path.join(ARCH, "ratings.csv")
-MODEL_DIR     = os.path.join(BASE, "model")
+ENRICHED_PATH = os.path.join(ROOT, "backend", "db", "books_enriched.csv")
+RATINGS_PATH  = os.path.join(ROOT, "backend", "db", "ratings.csv")
+MODEL_DIR     = os.path.join(ROOT, "backend", "model")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ─── Hyper-parameters ──────────────────────────────────────────────
@@ -241,20 +240,15 @@ X_tr, X_te, y_tr, y_te = train_test_split(
 log(f"  Train: {len(X_tr):,}  |  Test: {len(X_te):,}  |  Input dim: {X_tr.shape[1]}")
 
 mlp = MLPClassifier(
-    hidden_layer_sizes=(256, 128, 64),
-    activation="relu",
-    solver="adam",
-    alpha=1e-4,
+    hidden_layer_sizes=(64,),
+    max_iter=5,
+    alpha=0.001,
     batch_size=1024,
-    learning_rate="adaptive",
-    learning_rate_init=1e-3,
-    max_iter=100,
     early_stopping=True,
     validation_fraction=0.1,
-    n_iter_no_change=8,
-    tol=1e-4,
+    n_iter_no_change=3,
     random_state=42,
-    verbose=True,
+    verbose=True
 )
 
 t0 = time.time()

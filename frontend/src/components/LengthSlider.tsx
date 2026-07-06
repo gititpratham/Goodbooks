@@ -7,11 +7,23 @@ interface LengthSliderProps {
 }
 
 export default function LengthSlider({ value, onChange }: LengthSliderProps) {
+  const RUNTIME_VALUES = [
+    { hours: 1, pages: 50, label: '1 HR' },
+    { hours: 3, pages: 150, label: '3 HRS' },
+    { hours: 5, pages: 250, label: '5 HRS' },
+    { hours: 10, pages: 500, label: '10 HRS' },
+    { hours: 20, pages: 1000, label: '20+ HRS' }
+  ]
+
   const isNoLimit = value >= 9999
-  const sliderValue = isNoLimit ? 1000 : value
+  // Find the closest index for the current page value, default to 2 (5 hours)
+  let currentIndex = RUNTIME_VALUES.findIndex(v => v.pages >= value)
+  if (currentIndex === -1) currentIndex = RUNTIME_VALUES.length - 1
+  if (isNoLimit) currentIndex = RUNTIME_VALUES.length - 1 // Default visual position when No Limit is toggled
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(parseInt(e.target.value, 10))
+    const idx = parseInt(e.target.value, 10)
+    onChange(RUNTIME_VALUES[idx].pages)
   }
 
   const handleNoLimitClick = () => {
@@ -22,12 +34,9 @@ export default function LengthSlider({ value, onChange }: LengthSliderProps) {
     }
   }
 
-  const is20Plus = sliderValue >= 1000
   const displayLabel = isNoLimit 
     ? 'NO LIMIT' 
-    : is20Plus 
-      ? '20+ HRS' 
-      : `${sliderValue / 50} ${sliderValue / 50 === 1 ? 'HR' : 'HRS'}`
+    : RUNTIME_VALUES[currentIndex].label
 
   return (
     <div className="runtime-slider-row">
@@ -35,10 +44,10 @@ export default function LengthSlider({ value, onChange }: LengthSliderProps) {
         <input
           type="range"
           id="length-range"
-          min={50}
-          max={1000}
-          step={50}
-          value={sliderValue}
+          min={0}
+          max={RUNTIME_VALUES.length - 1}
+          step={1}
+          value={currentIndex}
           onChange={handleSliderChange}
           disabled={isNoLimit}
           aria-label="Maximum book runtime"

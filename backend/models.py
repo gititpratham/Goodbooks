@@ -16,6 +16,7 @@ class RecommendRequest(BaseModel):
     minRating: float = Field(default=3.5, ge=0.0, le=5.0, description="Minimum average rating filter")
     maxPages: int = Field(default=9999, ge=0, description="Maximum page count (9999 = no limit)")
     pubEra: str = Field(default="any", description="Publication era: 'recent' (>=2000), 'classic' (<1980), 'any'")
+    popularity: str = Field(default="popular", description="Popularity preference: 'popular' or 'underrated'")
 
 
 class BookResult(BaseModel):
