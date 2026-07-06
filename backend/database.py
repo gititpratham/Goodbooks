@@ -33,7 +33,7 @@ log = logging.getLogger(__name__)
 _HERE = Path(__file__).parent
 
 DB_PATH       = Path(os.environ.get("DB_PATH",       str(_HERE / "goodbooks.db")))
-BOOKS_CSV     = Path(os.environ.get("BOOKS_CSV",     str(_HERE / "db" / "books.csv")))
+BOOKS_CSV     = Path(os.environ.get("BOOKS_CSV",     str(_HERE / "db" / "books_with_descriptions.csv")))
 TAGS_CSV      = Path(os.environ.get("TAGS_CSV",      str(_HERE / "db" / "tags.csv")))
 BOOK_TAGS_CSV = Path(os.environ.get("BOOK_TAGS_CSV", str(_HERE / "db" / "book_tags.csv")))
 
@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS books (
     ratings_count   INTEGER DEFAULT 0,
     pub_year        INTEGER,
     image_url       TEXT,
-    language_code   TEXT
+    language_code   TEXT,
+    description     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_books_rating ON books (average_rating DESC);
 CREATE INDEX IF NOT EXISTS idx_books_count  ON books (ratings_count  DESC);
@@ -114,8 +115,8 @@ def seed(conn: sqlite3.Connection) -> None:
     insert_book = """
         INSERT OR REPLACE INTO books
             (id, goodreads_id, title, authors, average_rating,
-             ratings_count, pub_year, image_url, language_code)
-        VALUES (?,?,?,?,?,?,?,?,?)
+             ratings_count, pub_year, image_url, language_code, description)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
     """
     books_rows: list[tuple] = []
     with open(BOOKS_CSV, newline="", encoding="utf-8") as f:
@@ -149,6 +150,7 @@ def seed(conn: sqlite3.Connection) -> None:
                 pub_year,
                 r.get("image_url", "").strip(),
                 r.get("language_code", "eng").strip(),
+                r.get("description", "").strip(),
             ))
 
     with conn:

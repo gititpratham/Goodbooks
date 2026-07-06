@@ -244,6 +244,7 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
             b.ratings_count,
             b.pub_year,
             b.image_url,
+            b.description,
             {genre_select} AS genre_score,
             {mood_select}  AS mood_score
         FROM books b
@@ -302,7 +303,7 @@ def get_recommendations(conn: sqlite3.Connection, req: RecommendRequest) -> list
             author         = (r["authors"] or "Unknown").strip(),
             genres         = genre_map.get(r["id"], []),
             moods          = mood_map.get(r["id"], []),
-            pitch          = "",   # books.csv has no description; placeholder
+            pitch          = r["description"] or "",
             match          = match_pct,
             average_rating = r["average_rating"],
             ratings_count  = r["ratings_count"],
@@ -343,7 +344,7 @@ def _fallback_top(
             author         = (r["authors"] or "Unknown").strip(),
             genres         = [],
             moods          = [],
-            pitch          = "",
+            pitch          = r["description"] or "",
             match          = max(50, round(60 + (r["average_rating"] - min_rating) * 20)),
             average_rating = r["average_rating"],
             ratings_count  = r["ratings_count"],
