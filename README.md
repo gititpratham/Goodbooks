@@ -1,72 +1,404 @@
-# SHELF/MATCH — Book Recommendation Service
+# GOOD/BOOKS — Personalized Book Recommendation Engine
 
-**Author**: Suvidha Air  
-**Submission For**: Recruitment Project 2026 — "Matching / Recommendation Service"  
-**Deadline**: 8th July 2026  
-
-## The "Why"
-As per the Project 2026 requirements, this application fulfills the need for a **"Matching or suggestion-based application"** where users input their preferences, and the system matches their data against a catalog to provide multiple tailored results. 
-
-Instead of a standard movie or dating app, this project implements a **Book Recommendation Engine** (SHELF/MATCH) based on the **Goodbooks-10K** dataset. It demonstrates the ability to handle large data relationships (10,000 books, 34,000+ tags, ~1 million tag linkages) and distill them into a responsive, intuitive interface.
-
-## The "What"
-**SHELF/MATCH** is a full-stack containerized web application that functions like a digital librarian:
-1. **Intake Form**: Users select their preferred Genres, reading Moods, maximum Page Count, and Format.
-2. **Recommendation Engine**: A custom Python backend cross-references these inputs against a curated SQLite database, applying a weighted ranking algorithm based on tag intersections, average rating, and popularity.
-3. **Shortlist**: The user is presented with a personalized shortlist of book cards, highlighting their match percentage and the specific traits that aligned with their request.
-
-### Technology Stack
-- **Frontend**: React + TypeScript (Vite), styled with raw CSS for a bespoke, brutalist/editorial aesthetic.
-- **Backend**: Python 3.11 with FastAPI and SQLite.
-- **Infrastructure**: Fully Dockerized (multi-stage builds) and orchestrated with `docker-compose`.
-
-## The "How" (Architecture & Logic)
-The system is divided into two decoupled services communicating via a REST API:
-
-### 1. Data Engineering & Backend (Python/FastAPI)
-The core logic resides in `backend/recommender.py` and `backend/database.py`.
-- **Seeding**: On first boot, the backend reads raw CSV files (`books_enriched.csv`, `tags.csv`, `book_tags.csv`) and seeds a WAL-mode SQLite database. The `book_tags` table contains nearly 1 million rows and is streamed in batches for memory efficiency.
-- **Mapping**: User-friendly UI concepts (like the "Cozy" mood or "Sci-Fi" genre) are mapped under the hood to highly specific, community-driven Goodreads tags (e.g., "space-opera", "cyberpunk", "feel-good", "wholesome").
-- **Scoring**: When a request is made, the backend performs SQL `LEFT JOIN` aggregations on the tag counts. Books are scored using a normalized formula:
-  - 50% Genre match strength
-  - 25% Mood match strength
-  - 17% Quality (Average Rating)
-  - 8% Popularity (Ratings Count)
-
-### 2. Frontend (React/TypeScript)
-The UI is a single-page React application served by Nginx.
-- State is managed natively with React hooks (`useState`), collecting inputs across interactive tile components and range sliders.
-- API requests are proxied through Nginx (`/api/recommend` -> `backend:8000`), avoiding CORS issues and ensuring a secure, production-ready architecture.
-- The interface is fully responsive, prioritizing accessibility and immediate visual feedback.
+> **Your next great read is waiting.**
+> A full-stack, ML-powered book recommendation app built on the Goodbooks-10K dataset.
 
 ---
 
-## Running the Application (Plug and Play)
+## Table of Contents
 
-This project is configured to run instantly via Docker Compose.
+- [Overview](#overview)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [How the Recommender Works](#how-the-recommender-works)
+  - [ML Model Training](#ml-model-training)
+  - [Inference Pipeline](#inference-pipeline)
+  - [Filters Explained](#filters-explained)
+- [API Reference](#api-reference)
+- [Running Locally](#running-locally)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start with Docker](#quick-start-with-docker)
+  - [Running without Docker](#running-without-docker)
+- [Retraining the Model](#retraining-the-model)
+- [Frontend Overview](#frontend-overview)
+- [Filter Defaults](#filter-defaults)
+- [Dataset](#dataset)
+- [Archive Folder](#archive-folder)
+
+---
+
+## Overview
+
+**GOOD/BOOKS** is a personalized book recommendation web application. Users fill out a short preference form (genres, mood, popularity, rating, book length, and era), and the system returns their top 10 books matched by a trained Neural Network.
+
+The recommendation engine is a **hybrid ML system** combining:
+- A **Multi-Layer Perceptron (MLP)** classifier trained on 424,000+ pairwise user–book interactions.
+- **TF-IDF + SVD** description embeddings for semantic content understanding.
+- **Genre & mood multi-hot encoding** for preference alignment.
+- **Hard filters** for rating, page count, publication era, and popularity.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Frontend** | React 18 + TypeScript + Vite |
+| **Styling** | Vanilla CSS (no framework) |
+| **Backend API** | Python 3.11 + FastAPI + Uvicorn |
+| **ML Model** | scikit-learn `MLPClassifier` |
+| **Feature Engineering** | TF-IDF, TruncatedSVD, StandardScaler |
+| **Database** | SQLite (WAL mode, seeded on first boot) |
+| **Containerization** | Docker + Docker Compose |
+| **Dataset** | Goodbooks-10K (Kaggle) |
+
+---
+
+## Architecture
+
+```
++-------------------------------------------------------------+
+|                        GOOD/BOOKS                           |
+|                                                             |
+|  +----------------------+       +------------------------+  |
+|  |   Frontend (React)   |-----> |  FastAPI Backend       |  |
+|  |   Port :80           | <-----|  Port :8000            |  |
+|  |                      |       |                        |  |
+|  |  - TileGroup         |       |  POST /api/recommend   |  |
+|  |  - LengthSlider      |       |  GET  /api/health      |  |
+|  |  - RatingSlider      |       |  GET  /api/options/*   |  |
+|  |  - BookCard          |       |                        |  |
+|  +----------------------+       |  +-----------------+   |  |
+|                                 |  | MLBookRecommend |   |  |
+|                                 |  |  (MLP Classifier|   |  |
+|                                 |  +--------+--------+   |  |
+|                                 |           |            |  |
+|                                 |  +--------v--------+   |  |
+|                                 |  |   SQLite DB     |   |  |
+|                                 |  |  (10K books)    |   |  |
+|                                 |  +-----------------+   |  |
+|                                 +------------------------+  |
++-------------------------------------------------------------+
+```
+
+Both services run inside Docker containers and communicate over an internal bridge network (`shelfmatch-net`). The SQLite database is persisted via a named Docker volume (`shelfmatch-data`).
+
+---
+
+## Project Structure
+
+```
+goodbooks/
+├── docker-compose.yml          # Orchestrates frontend + backend containers
+├── README.md
+│
+├── backend/                    # FastAPI application + ML engine
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── main.py                 # API entry point, route definitions
+│   ├── models.py               # Pydantic request/response models
+│   ├── database.py             # SQLite schema + seeding logic
+│   ├── ml_recommender.py       # MLBookRecommender inference class
+│   ├── db/
+│   │   ├── books_enriched.csv  # 10K books with genres, moods, pages
+│   │   ├── tags.csv            # Goodreads tag vocabulary
+│   │   └── book_tags.csv       # Book–tag association counts
+│   └── model/
+│       ├── recommender_best.joblib  # Active production model
+│       └── recommender_full.joblib  # Full-data trained model
+│
+├── frontend/                   # React + TypeScript UI
+│   ├── Dockerfile
+│   ├── nginx.conf              # Nginx reverse-proxy config
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── src/
+│       ├── App.tsx             # Root component + form state
+│       ├── constants.ts        # Genre/mood lists + filter defaults
+│       ├── types.ts            # TypeScript interfaces (mirrors Pydantic)
+│       ├── index.css           # Global styles
+│       ├── api/
+│       │   └── recommend.ts    # API client (fetch wrapper)
+│       └── components/
+│           ├── Header.tsx      # Top navigation bar
+│           ├── Hero.tsx        # Landing headline section
+│           ├── TileGroup.tsx   # Multi-select tile filter
+│           ├── LengthSlider.tsx # Max book runtime slider
+│           ├── RatingSlider.tsx # Min rating slider
+│           └── BookCard.tsx    # Individual book recommendation card
+│
+└── archive/                    # Development history (not used by the app)
+    ├── train_model.py          # Model training script — run this to retrain
+    ├── recommender.py          # Legacy SQL-based recommender (replaced by ML)
+    ├── build_enriched.py       # Script to build books_enriched.csv from SQLite
+    ├── goodbooks_eda.py        # Exploratory Data Analysis notebook
+    ├── generate_descriptions.py # Description generation utility
+    ├── archive_eda.py          # Early EDA iteration
+    └── eda/                    # EDA output charts (PNG)
+```
+
+---
+
+## How the Recommender Works
+
+### ML Model Training
+
+The model is a **pairwise preference MLP classifier** trained on the Goodbooks-10K ratings dataset.
+
+**Training script:** `archive/train_model.py`
+
+**Steps:**
+1. **Load data** — `books_enriched.csv` (10,000 books) + `ratings.csv` (981,756 ratings across 53,424 users).
+2. **Engineer book features** — Each book is a **97-dimensional vector**:
+   - Genre multi-hot (39 dims) — based on Goodreads tag mapping.
+   - Mood multi-hot (8 dims) — inferred from description keywords.
+   - Numeric features (4 dims) — pages, pub year, avg rating, log(ratings_count).
+   - TF-IDF + TruncatedSVD description embedding (46 dims).
+3. **Build training pairs** — For each user, their books are split into:
+   - **Positive** (liked): books rated ≥ 4 stars.
+   - **Negative** (disliked): books rated ≤ 2 stars.
+   - Each training input = `concat(user_pref_vec[97], book_feat_vec[97])` = **194 dims**.
+4. **Train** — `sklearn.neural_network.MLPClassifier` with early stopping.
+5. **Evaluate** — ROC-AUC and Precision/Recall on a 15% held-out test split.
+6. **Save** — Serialized model bundle saved to `backend/model/recommender_best.joblib`.
+
+**Final model performance:**
+```
+ROC-AUC  = 0.8576
+Accuracy = 77.1%
+Precision: 0.73  |  Recall: 0.78
+Training pairs: 424,202  |  Users: 53,424
+```
+
+---
+
+### Inference Pipeline
+
+When a user submits the form, `POST /api/recommend` is called and the following happens inside `MLBookRecommender.recommend()`:
+
+1. **Build a 97-dim user preference vector** from selected genres, moods, rating, page limit, and era.
+2. **Tile** the user vector against all 10,000 book feature vectors:  
+   `X = concat(user[97], book[97])` → shape `(10000, 194)`.
+3. **Score all books** in a single batch forward pass:  
+   `scores = mlp.predict_proba(X)[:, 1]` — P(liked) for every book.
+4. **Apply hard filters** — drop any book that fails:
+   - `average_rating < minRating`
+   - `pages > maxPages` (when a limit is set)
+   - `pub_year` outside the selected era range
+   - `ratings_count > 65,000` when `popularity == "underrated"`
+5. **Sort** by ML score descending.
+6. **Return** top 10 results.
+
+---
+
+### Filters Explained
+
+| Filter | Field | Behaviour |
+|---|---|---|
+| **Genres** | `genres[]` | Influences genre multi-hot in the preference vector |
+| **Mood** | `moods[]` | Steers MLP score via mood multi-hot encoding |
+| **Popularity** | `popularity` | `popular` = no filter; `underrated` = excludes books with >65,000 ratings (top ~15%) |
+| **Min Rating** | `minRating` | Hard filter — books below this avg rating are excluded |
+| **Max Runtime** | `maxPages` | Hard filter on page count. Conversion: 50 pages/hour (e.g. 30 hrs = 1,500 pages) |
+| **Era** | `pubEra` | `recent` = year ≥ 2000, `classic` = year < 1980, `any` = no filter |
+
+---
+
+## API Reference
+
+Base URL (local): `http://localhost:8000`
+
+Swagger docs: `http://localhost:8000/docs`
+
+### `POST /api/recommend`
+
+Returns up to 10 personalized book recommendations.
+
+**Request body:**
+```json
+{
+  "genres":     ["Fantasy", "Thriller"],
+  "moods":      ["Cozy", "Escapist"],
+  "minRating":  4.0,
+  "maxPages":   1500,
+  "pubEra":     "recent",
+  "popularity": "popular"
+}
+```
+
+**Response:**
+```json
+{
+  "books": [
+    {
+      "title":          "The Name of the Wind",
+      "author":         "Patrick Rothfuss",
+      "genres":         ["Fantasy", "Fiction"],
+      "moods":          [],
+      "pitch":          "A legendary figure recounts his life story...",
+      "match":          92,
+      "average_rating": 4.55,
+      "ratings_count":  497765,
+      "pages":          662,
+      "image_url":      "https://...",
+      "pub_year":       2007
+    }
+  ],
+  "count": 10,
+  "query": { ... }
+}
+```
+
+### `GET /api/health`
+
+Returns backend health status and whether the database is seeded.
+
+### `GET /api/options/genres`
+
+Returns available genre labels (sourced from the loaded ML model).
+
+### `GET /api/options/moods`
+
+Returns available mood labels (sourced from the loaded ML model).
+
+---
+
+## Running Locally
 
 ### Prerequisites
-- Docker
-- Docker Compose
 
-### Start the Services
-1. Clone or extract the repository.
-2. Open a terminal in the root directory (where `docker-compose.yml` is located).
-3. Run the following command:
-   ```bash
-   docker-compose up --build
-   ```
-4. **Important**: On the very first run, the Python backend will spend ~30-60 seconds seeding the 1 million tag relationships into the SQLite database. The frontend is available immediately, but API requests will wait until the database is ready.
-5. Open your browser and navigate to: **http://localhost**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
 
-### Stop the Services
+### Quick Start with Docker
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/gititpratham/Goodbooks.git
+cd Goodbooks
+
+# 2. Build and start all services
+docker-compose up --build
+
+# Frontend → http://localhost:80
+# API Docs  → http://localhost:8000/docs
+```
+
+On **first boot**, the backend automatically seeds the SQLite database from `backend/db/`. This takes ~10–15 seconds. The database persists via a Docker volume so subsequent starts are instant.
+
+**Rebuild a single service:**
+```bash
+docker-compose build --no-cache frontend
+docker-compose up -d frontend
+```
+
+**Stop all containers:**
 ```bash
 docker-compose down
 ```
-*(The SQLite database is stored in a persistent Docker volume, so subsequent startups will be instantaneous).*
 
-## Directory Structure
-- `/frontend`: React + TypeScript source code, Vite config, and Nginx setup.
-- `/backend`: Python FastAPI source, Pydantic models, SQLite schema, and Recommender logic.
-  - `/backend/db`: The raw Kaggle dataset CSVs used for seeding (`books.csv`, `tags.csv`, `book_tags.csv`).
-- `/archive`: Old EDA notebooks, previous attempts, and project documents.
+---
+
+### Running without Docker
+
+**Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+# Dev server starts at http://localhost:5173
+```
+
+---
+
+## Retraining the Model
+
+If you update `books_enriched.csv` or want to retrain from scratch:
+
+```bash
+python archive/train_model.py
+```
+
+This will:
+1. Load `backend/db/books_enriched.csv` + `backend/db/ratings.csv`.
+2. Build training pairs from all 53K users.
+3. Train and evaluate a new MLP classifier.
+4. Save to `backend/model/recommender_best.joblib`.
+
+Then rebuild the backend to pick up the new model:
+```bash
+docker-compose build --no-cache backend && docker-compose up -d backend
+```
+
+---
+
+## Frontend Overview
+
+| Component | Purpose |
+|---|---|
+| `Header` | App logo and navigation bar |
+| `Hero` | Landing headline and tagline |
+| `TileGroup` | Multi-select tiles for Genres, Moods, and Era |
+| `LengthSlider` | Max Book Runtime slider (10 / 15 / 20 / 30 / 40 hrs / No Limit) |
+| `RatingSlider` | Minimum Star Rating slider (0.0 – 5.0) |
+| `BookCard` | Book cover, title, author, description, genre chips, rating, page count, year |
+
+---
+
+## Filter Defaults
+
+Pre-selected when the page loads:
+
+| Filter | Default |
+|---|---|
+| Genres | Fantasy, Sci-Fi, Thriller |
+| Mood | Cozy |
+| Popularity | Popular |
+| Min Rating | ★ 4.0 |
+| Max Book Runtime | 30 hrs (≤ 1,500 pages) |
+| Era | Recent (≥ 2000) |
+
+---
+
+## Dataset
+
+**Goodbooks-10K** by Zygmunt Zając — [Kaggle](https://www.kaggle.com/datasets/zygmunt/goodbooks-10k)
+
+- 10,000 books (most popular on Goodreads)
+- 981,756 user ratings, 53,424 users
+- Tag/genre metadata from Goodreads bookshelves
+
+Files in `backend/db/`:
+
+| File | Description |
+|---|---|
+| `books_enriched.csv` | 10K books with genre, mood tags, and page counts |
+| `tags.csv` | ~34K unique Goodreads tag names |
+| `book_tags.csv` | ~1M book–tag count associations |
+
+---
+
+## Archive Folder
+
+Development scripts kept for reference — **not used by the running app**:
+
+| File | Purpose |
+|---|---|
+| `train_model.py` | ML training pipeline — run to retrain the model |
+| `recommender.py` | Legacy SQL heuristic recommender (replaced by ML) |
+| `build_enriched.py` | Built `books_enriched.csv` from the raw SQLite dump |
+| `goodbooks_eda.py` | Exploratory Data Analysis of the raw dataset |
+| `generate_descriptions.py` | Utility to generate book description summaries |
+| `eda/` | EDA output charts (PNG images) |
+
+---
+
+*Built with love as a Jump Trading Program project.*
