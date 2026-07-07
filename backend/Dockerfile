@@ -5,16 +5,16 @@ LABEL description="Book Recommendation API — FastAPI + SQLite"
 
 WORKDIR /app/backend
 
-# Install Python dependencies first (layer cache)
+# Install Python dependencies first.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source
+# Copy application source.
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
 
-# Data paths — overridden by docker-compose volumes
+# Data paths, overridden by docker-compose volumes.
 ENV DB_PATH=/app/backend/storage/goodbooks.db
 ENV BOOKS_CSV=/app/backend/db/books.csv
 ENV TAGS_CSV=/app/backend/db/tags.csv
