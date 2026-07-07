@@ -1,25 +1,4 @@
-"""
-database.py — SQLite connection, schema creation, and CSV seeding.
-
-Data sources (from Goodbooks-10k Kaggle dataset)
--------------------------------------------------
-books.csv     →  books table   (title, authors, ratings — id = sequential row number 1..10000)
-tags.csv      →  tags  table   (tag_id, tag_name)
-book_tags.csv →  book_tags     (goodreads_book_id = sequential row id, tag_id, count)
-
-Key join: book_tags.goodreads_book_id == books.id  (sequential row number, NOT books.book_id)
-
-Path resolution
----------------
-Set these env vars to override defaults (used by Docker):
-    DB_PATH       path to SQLite file
-    BOOKS_CSV     path to books.csv
-    TAGS_CSV      path to tags.csv
-    BOOK_TAGS_CSV path to book_tags.csv
-"""
-
 from __future__ import annotations
-
 import csv
 import logging
 import os
@@ -29,7 +8,7 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# ── Path resolution ────────────────────────────────────────────────────────────
+# path declaration.
 _HERE = Path(__file__).parent
 
 DB_PATH       = Path(os.environ.get("DB_PATH",       str(_HERE / "goodbooks.db")))
@@ -37,7 +16,7 @@ BOOKS_CSV     = Path(os.environ.get("BOOKS_CSV",     str(_HERE / "db" / "books_w
 TAGS_CSV      = Path(os.environ.get("TAGS_CSV",      str(_HERE / "db" / "tags.csv")))
 BOOK_TAGS_CSV = Path(os.environ.get("BOOK_TAGS_CSV", str(_HERE / "db" / "book_tags.csv")))
 
-# ── Connection factory ─────────────────────────────────────────────────────────
+# db connection. 
 
 def get_connection() -> sqlite3.Connection:
     """Return a new WAL-mode SQLite connection with row_factory."""
@@ -47,16 +26,16 @@ def get_connection() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA cache_size=-32000")  # 32 MB page cache
+    conn.execute("PRAGMA cache_size=-32000")
     return conn
 
 
-# ── Schema ────────────────────────────────────────────────────────────────────
+# schema declaration.
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS books (
-    id              INTEGER PRIMARY KEY,   -- sequential row id (1..10000), matches book_tags.goodreads_book_id
-    goodreads_id    INTEGER,               -- the actual Goodreads book_id
+    id              INTEGER PRIMARY KEY,
+    goodreads_id    INTEGER,
     title           TEXT    NOT NULL,
     authors         TEXT,
     average_rating  REAL    DEFAULT 0,
@@ -91,7 +70,7 @@ def create_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-# ── Seeder ────────────────────────────────────────────────────────────────────
+# check if seeded.
 
 def is_seeded(conn: sqlite3.Connection) -> bool:
     row = conn.execute("SELECT COUNT(*) AS c FROM books").fetchone()
@@ -99,15 +78,12 @@ def is_seeded(conn: sqlite3.Connection) -> bool:
 
 
 def seed(conn: sqlite3.Connection) -> None:
-    """Populate books, tags, and book_tags from CSV files (runs once)."""
-
+    """populate books, tags, and book_tags from CSV Files (runs once)."""
     log.info("═" * 56)
     log.info("  GOODBOOKS — Seeding SQLite database")
     log.info("═" * 56)
 
-    # ── 1. books ──────────────────────────────────────────────────────────────
-    # CRITICAL: Use the sequential 'id' column as PRIMARY KEY so it matches
-    # book_tags.goodreads_book_id (which is 1..10000, not the Goodreads book_id).
+    # books table seeding.
     log.info("[1/3] Seeding books from %s …", BOOKS_CSV)
     if not BOOKS_CSV.exists():
         raise FileNotFoundError(f"books.csv not found at {BOOKS_CSV}")
@@ -122,16 +98,16 @@ def seed(conn: sqlite3.Connection) -> None:
     with open(BOOKS_CSV, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for r in reader:
-            # 'id' is the sequential row number (1..10000) — this MUST match book_tags.goodreads_book_id
+            # 'id' is the sequential row number, this MUST match book_tags.goodreads_book_id.
             seq_id = int(r["id"])
-            # 'book_id' is the actual Goodreads identifier
+            # 'book_id' is the actual Goodreads identifier.
             goodreads_id = int(r["book_id"])
 
-            # Authors: raw CSV is comma-separated, take the first
+            # Authors: raw CSV is comma-separated, take the first.
             authors_raw = r.get("authors", "").split(",")
             first_author = authors_raw[0].strip() if authors_raw else "Unknown"
 
-            # Publication year: stored as float e.g. "1997.0"
+            # Publication year: stored as float.
             pub_year = None
             py_raw = r.get("original_publication_year", "").strip()
             if py_raw and py_raw.lower() not in ("", "nan"):
@@ -157,7 +133,7 @@ def seed(conn: sqlite3.Connection) -> None:
         conn.executemany(insert_book, books_rows)
     log.info("  → Inserted %d books ✓", len(books_rows))
 
-    # ── 2. tags ───────────────────────────────────────────────────────────────
+    # tags table seeding.
     log.info("[2/3] Seeding tags from %s …", TAGS_CSV)
     if not TAGS_CSV.exists():
         raise FileNotFoundError(f"tags.csv not found at {TAGS_CSV}")
@@ -172,7 +148,7 @@ def seed(conn: sqlite3.Connection) -> None:
         conn.executemany("INSERT OR IGNORE INTO tags (tag_id, tag_name) VALUES (?,?)", tag_rows)
     log.info("  → Inserted %d tags ✓", len(tag_rows))
 
-    # ── 3. book_tags (streamed in 10k-row batches for efficiency) ─────────────
+    # book_tags table seeding.
     log.info("[3/3] Seeding book_tags from %s (streaming) …", BOOK_TAGS_CSV)
     if not BOOK_TAGS_CSV.exists():
         raise FileNotFoundError(f"book_tags.csv not found at {BOOK_TAGS_CSV}")
@@ -185,7 +161,7 @@ def seed(conn: sqlite3.Connection) -> None:
     with open(BOOK_TAGS_CSV, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for r in reader:
-            # goodreads_book_id here is the sequential id (1..10000) matching books.id
+            # goodreads_book_id here is the sequential id matching books.id.
             batch.append((int(r["goodreads_book_id"]), int(r["tag_id"]), int(r["count"])))
             if len(batch) >= BATCH:
                 with conn:
