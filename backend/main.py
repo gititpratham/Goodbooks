@@ -1,21 +1,13 @@
-"""
-main.py — SHELF/MATCH FastAPI application entry point.
-"""
-
 from __future__ import annotations
-
 import logging
 import threading
 import os
 from contextlib import asynccontextmanager
 from typing import List
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
 from database import create_schema, get_connection, is_seeded, seed
 from models import HealthResponse, RecommendRequest, RecommendResponse, BookResult
-
 from ml_recommender import MLBookRecommender
 
 logging.basicConfig(
@@ -23,7 +15,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%H:%M:%S",
 )
-log = logging.getLogger("shelfmatch")
+log = logging.getLogger("goodbooks")
 
 _db_ready   = threading.Event()
 _seed_error: str | None = None
@@ -35,7 +27,7 @@ def _seed_worker() -> None:
         conn = get_connection()
         create_schema(conn)
         if not is_seeded(conn):
-            log.info("Database empty — seeding now (first run, ~10s) …")
+            log.info("Database empty, seeding now (first run, ~10s)...")
             seed(conn)
         else:
             n = conn.execute("SELECT COUNT(*) AS c FROM books").fetchone()["c"]
@@ -46,9 +38,9 @@ def _seed_worker() -> None:
         model_path = os.path.join(os.path.dirname(__file__), "model", "recommender.joblib")
         if os.path.exists(model_path):
             ml_model = MLBookRecommender(model_path)
-            log.info("ML Recommender loaded successfully.")
+            log.info("ML Recommender loaded successfully! ")
         else:
-            log.warning(f"ML Recommender model not found at {model_path}")
+            log.warning(f"ML Recommender model not found at {model_path}.")
             
     except Exception as exc:
         _seed_error = str(exc)
@@ -65,7 +57,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="SHELF/MATCH — Book Recommendation API",
+    title="GOOD/BOOKS Recommendation API",
     version="2.0.0",
     description="Hybrid ML book recommendation engine built on Goodbooks-10K.",
     lifespan=lifespan,
@@ -94,7 +86,7 @@ def health() -> HealthResponse:
 @app.post("/api/recommend", response_model=RecommendResponse, tags=["recommend"])
 def recommend(req: RecommendRequest) -> RecommendResponse:
     if _seed_error:
-        raise HTTPException(status_code=503, detail=f"Startup failed: {_seed_error}")
+        raise HTTPException(status_code=503, detail=f"Startup failed: {_seed_error}.")
     if not _db_ready.is_set():
         raise HTTPException(status_code=503, detail="System starting — retry in a moment.")
     if not ml_model:
@@ -119,7 +111,7 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
                 genres=eval(rb["genres"]) if isinstance(rb["genres"], str) and rb["genres"].startswith("[") else [],
                 moods=[], # the ML model doesn't directly return matched moods without the explain() method, but we can just use req.moods for display if we want.
                 pitch=rb["description"],
-                match=int(max(50, min(100, rb["ml_score"] * 100))), # Convert 0-1 probability to percentage
+                match=int(max(50, min(100, rb["ml_score"] * 100))), # Convert 0-1 probability to percentage.
                 average_rating=rb["average_rating"],
                 ratings_count=rb["ratings_count"],
                 pages=rb["pages"],
@@ -133,11 +125,9 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
 
     return RecommendResponse(books=books, count=len(books), query=req)
 
-
 @app.get("/api/options/genres", response_model=List[str], tags=["options"])
 def list_genres() -> List[str]:
     return ml_model.genre_list if ml_model else []
-
 
 @app.get("/api/options/moods", response_model=List[str], tags=["options"])
 def list_moods() -> List[str]:
