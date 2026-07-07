@@ -63,7 +63,7 @@ The recommendation engine is a **hybrid ML system** combining:
 |                                                             |
 |  +----------------------+       +------------------------+  |
 |  |   Frontend (React)   |-----> |  FastAPI Backend       |  |
-|  |   Port :80           | <-----|  Port :8000            |  |
+|  |   Port :8080         | <-----|  Port :8000            |  |
 |  |                      |       |                        |  |
 |  |  - TileGroup         |       |  POST /api/recommend   |  |
 |  |  - LengthSlider      |       |  GET  /api/health      |  |
@@ -280,7 +280,10 @@ cd Goodbooks
 # 2. Build and start all services
 docker-compose up --build
 
-# Frontend → http://localhost:80
+# 3. If you are using the new Compose
+sudo docker compose up --build
+
+# Frontend → http://localhost:8080
 # API Docs  → http://localhost:8000/docs
 ```
 
