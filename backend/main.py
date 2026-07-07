@@ -80,7 +80,7 @@ def health() -> HealthResponse:
         conn.close()
     except Exception:
         seeded, count = False, 0
-    return HealthResponse(status="ok", service="SHELF/MATCH API", db_seeded=seeded, book_count=count)
+    return HealthResponse(status="ok", service="GOOD/BOOKS API", db_seeded=seeded, book_count=count)
 
 
 @app.post("/api/recommend", response_model=RecommendResponse, tags=["recommend"])
@@ -100,7 +100,7 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
             max_pages=None if req.maxPages >= 9999 else req.maxPages,
             year_pref=req.pubEra,
             popularity_pref=req.popularity,
-            n=10
+            n=12
         )
         
         books = []
@@ -118,6 +118,13 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
                 image_url=rb["image_url"],
                 pub_year=rb["pub_year"]
             ))
+        
+        # Apply filter: either show the 1st 90% match books or the top 6.
+        books_90_plus = [b for b in books if b.match >= 90]
+        if len(books_90_plus) >= 6:
+            books = books_90_plus
+        else:
+            books = books[:6]
             
     except Exception as exc:
         log.exception("Recommendation error")

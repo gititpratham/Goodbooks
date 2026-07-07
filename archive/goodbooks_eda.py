@@ -1,7 +1,7 @@
 """
 ========================================================
   GOODBOOKS-10K — EXPLORATORY DATA ANALYSIS
-  For: SHELF/MATCH Book Recommendation System
+  For: GOOD/BOOKS Book Recommendation System
   Dataset: books_enriched.csv (goodbooks-10k on Kaggle)
 ========================================================
 Run from the eda/ folder:
@@ -29,7 +29,7 @@ DATA_PATH = os.path.join(BASE_DIR, "..", "backend", "data", "books_enriched.csv"
 OUT_DIR   = os.path.join(BASE_DIR, "eda_output")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# ── Brand palette (matching SHELF/MATCH frontend) ──────────────────
+# ── Brand palette (matching GOOD/BOOKS frontend) ──────────────────
 C_INK    = "#111111"
 C_PAPER  = "#EDEAE0"
 C_RED    = "#FF3D2E"

@@ -1,5 +1,5 @@
 """
-recommender.py — Core recommendation engine for SHELF/MATCH.
+recommender.py — Core recommendation engine for GOOD/BOOKS.
 
 Algorithm
 ---------

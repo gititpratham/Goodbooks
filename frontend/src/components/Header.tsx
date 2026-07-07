@@ -1,4 +1,4 @@
-/** Header component — SHELF/MATCH logo + version tag. */
+/** Header component — GOOD/BOOKS logo + version tag. */
 export default function Header() {
   return (
     <header>

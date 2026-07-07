@@ -1,5 +1,5 @@
 /**
- * api/recommend.ts — API client for SHELF/MATCH backend.
+ * api/recommend.ts — API client for GOOD/BOOKS backend.
  *
  * Requests go to /api/* which:
  *   - In Docker: Nginx proxies to backend:8000

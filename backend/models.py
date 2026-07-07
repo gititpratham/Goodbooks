@@ -1,5 +1,5 @@
 """
-models.py — Pydantic request/response models for SHELF/MATCH API
+models.py — Pydantic request/response models for GOOD/BOOKS API
 """
 
 from __future__ import annotations

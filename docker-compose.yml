@@ -5,10 +5,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: shelfmatch-backend
+    container_name: goodbooks-backend
     volumes:
       # Mount a volume for the SQLite database so it persists across container restarts
-      - shelfmatch-data:/app/backend/storage
+      - goodbooks-data:/app/backend/storage
     environment:
       - DB_PATH=/app/backend/storage/goodbooks.db
       - BOOKS_CSV=/app/backend/db/books.csv
@@ -18,26 +18,26 @@ services:
       - "8000:8000"
     restart: unless-stopped
     networks:
-      - shelfmatch-net
+      - goodbooks-net
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: shelfmatch-frontend
+    container_name: goodbooks-frontend
     ports:
       - "8080:80"
     depends_on:
       - backend
     restart: unless-stopped
     networks:
-      - shelfmatch-net
+      - goodbooks-net
 
 volumes:
-  shelfmatch-data:
-    name: shelfmatch-data
+  goodbooks-data:
+    name: goodbooks-data
 
 networks:
-  shelfmatch-net:
-    name: shelfmatch-net
+  goodbooks-net:
+    name: goodbooks-net
     driver: bridge

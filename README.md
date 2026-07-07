@@ -82,7 +82,7 @@ The recommendation engine is a **hybrid ML system** combining:
 +-------------------------------------------------------------+
 ```
 
-Both services run inside Docker containers and communicate over an internal bridge network (`shelfmatch-net`). The SQLite database is persisted via a named Docker volume (`shelfmatch-data`).
+Both services run inside Docker containers and communicate over an internal bridge network (`goodbooks-net`). The SQLite database is persisted via a named Docker volume (`goodbooks-data`).
 
 ---
 
