@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
-LABEL maintainer="SHELF/MATCH Project"
-LABEL description="Book Recommendation API — FastAPI + SQLite"
+LABEL maintainer="GOOD/BOOKS Project"
+LABEL description="Book Recommendation API : FastAPI + SQLite"
 
 WORKDIR /app/backend
 
