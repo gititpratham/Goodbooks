@@ -43,7 +43,7 @@ def _seed_worker() -> None:
         conn.close()
         
         # Load ML model
-        model_path = os.path.join(os.path.dirname(__file__), "model", "recommender_best.joblib")
+        model_path = os.path.join(os.path.dirname(__file__), "model", "recommender.joblib")
         if os.path.exists(model_path):
             ml_model = MLBookRecommender(model_path)
             log.info("ML Recommender loaded successfully.")

@@ -21,7 +21,7 @@ Run from goodbooks/eda/:
   python train_model.py
 
 Saves to ./model/:
-  recommender_full.joblib   ← the trained model (also copied as recommender_best.joblib)
+  recommender.joblib   ← the trained model
 =========================================================
 """
 
@@ -298,10 +298,9 @@ bundle = dict(
     model_label  = "FULL",
 )
 
-for fname in ["recommender_full.joblib", "recommender_best.joblib"]:
-    path = os.path.join(MODEL_DIR, fname)
-    joblib.dump(bundle, path, compress=3)
-    log(f"  Saved: {os.path.getsize(path)/1e6:.1f} MB → {path}")
+path = os.path.join(MODEL_DIR, "recommender.joblib")
+joblib.dump(bundle, path, compress=3)
+log(f"  Saved: {os.path.getsize(path)/1e6:.1f} MB → {path}")
 
 # Smoke test
 log()

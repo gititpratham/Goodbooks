@@ -5,7 +5,7 @@
 Usage:
   from ml_recommender import MLBookRecommender
 
-  rec = MLBookRecommender("model/recommender_best.joblib")
+  rec = MLBookRecommender("model/recommender.joblib")
 
   books = rec.recommend(
       genres    = ["fantasy", "mystery"],
@@ -301,7 +301,7 @@ class MLBookRecommender:
 if __name__ == "__main__":
     import sys
 
-    model_path = os.path.join(os.path.dirname(__file__), "model", "recommender_best.joblib")
+    model_path = os.path.join(os.path.dirname(__file__), "model", "recommender.joblib")
     if len(sys.argv) > 1:
         model_path = sys.argv[1]
 

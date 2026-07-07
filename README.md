@@ -105,8 +105,7 @@ goodbooks/
 │   │   ├── tags.csv            # Goodreads tag vocabulary
 │   │   └── book_tags.csv       # Book–tag association counts
 │   └── model/
-│       ├── recommender_best.joblib  # Active production model
-│       └── recommender_full.joblib  # Full-data trained model
+│       └── recommender.joblib      # Active production model
 │
 ├── frontend/                   # React + TypeScript UI
 │   ├── Dockerfile
@@ -162,7 +161,7 @@ The model is a **pairwise preference MLP classifier** trained on the Goodbooks-1
    - Each training input = `concat(user_pref_vec[97], book_feat_vec[97])` = **194 dims**.
 4. **Train** — `sklearn.neural_network.MLPClassifier` with early stopping.
 5. **Evaluate** — ROC-AUC and Precision/Recall on a 15% held-out test split.
-6. **Save** — Serialized model bundle saved to `backend/model/recommender_best.joblib`.
+6. **Save** — Serialized model bundle saved to `backend/model/recommender.joblib`.
 
 **Final model performance:**
 ```
@@ -331,7 +330,7 @@ This will:
 1. Load `backend/db/books_enriched.csv` + `backend/db/ratings.csv`.
 2. Build training pairs from all 53K users.
 3. Train and evaluate a new MLP classifier.
-4. Save to `backend/model/recommender_best.joblib`.
+4. Save to `backend/model/recommender.joblib`.
 
 Then rebuild the backend to pick up the new model:
 ```bash
