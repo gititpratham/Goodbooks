@@ -2,6 +2,8 @@
 
 > **Your next great read is waiting.**
 > A full-stack, ML-powered book recommendation app built on the Goodbooks-10K dataset.
+>
+> 🌐 **Live Demo**: This project is currently deployed on a live **Oracle Cloud Infrastructure (OCI) Instance**! Try the recommendation engine here: [goodbooks.pratham.dpdns.org](https://goodbooks.pratham.dpdns.org)
 
 ---
 
