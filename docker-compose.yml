@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile
     container_name: goodbooks-backend
     volumes:
-      # Mount a volume for the SQLite database so it persists across container restarts
       - goodbooks-data:/app/backend/storage
     environment:
       - DB_PATH=/app/backend/storage/goodbooks.db
