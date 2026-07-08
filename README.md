@@ -404,3 +404,14 @@ Development scripts kept for reference — **not used by the running app**:
 | `eda/` | EDA output charts (PNG images) |
 
 ---
+
+## AI Transparency
+
+For full transparency, I have used AI assistants to help speed up some of the repetitive tasks in this project:
+
+- **Autocompletion:** I used the Antigravity IDE, which autocompletes using its Gemini 3.5 Flash model.
+- **Syntax Generation:** For syntax generation and completion, I used Gemini 3.1 Pro (High).
+- **Frontend & UI:** For a better UI and appealing frontend for users, I made a sketch and used Claude Sonnet 4.6 to take the idea from sketch to code.
+- **Documentation:** The generation and proofreading of this README and the codebase docstrings were done by Gemini 3.5 Flash.
+
+Aside from that, the rules of recommendation, EDA, the pre-processing techniques, and the Docker container logic were built by me.
