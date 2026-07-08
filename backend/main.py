@@ -22,6 +22,7 @@ _seed_error: str | None = None
 ml_model = None
 
 def _seed_worker() -> None:
+    """Background worker thread to initialize and seed the database and load the ML model."""
     global _seed_error, ml_model
     try:
         conn = get_connection()
@@ -51,6 +52,7 @@ def _seed_worker() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    """Lifespan event handler to manage startup and shutdown tasks, such as starting the database seeding thread."""
     t = threading.Thread(target=_seed_worker, daemon=True, name="seeder")
     t.start()
     yield
@@ -73,6 +75,7 @@ app.add_middleware(
 
 @app.get("/api/health", response_model=HealthResponse, tags=["meta"])
 def health() -> HealthResponse:
+    """Health check endpoint to report API status and database seeding progress."""
     try:
         conn    = get_connection()
         seeded  = is_seeded(conn)
@@ -85,6 +88,7 @@ def health() -> HealthResponse:
 
 @app.post("/api/recommend", response_model=RecommendResponse, tags=["recommend"])
 def recommend(req: RecommendRequest) -> RecommendResponse:
+    """Receive user preferences and return personalized book recommendations using the ML model."""
     if _seed_error:
         raise HTTPException(status_code=503, detail=f"Startup failed: {_seed_error}.")
     if not _db_ready.is_set():
@@ -134,8 +138,10 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
 
 @app.get("/api/options/genres", response_model=List[str], tags=["options"])
 def list_genres() -> List[str]:
+    """Return a list of available genre labels from the loaded ML model."""
     return ml_model.genre_list if ml_model else []
 
 @app.get("/api/options/moods", response_model=List[str], tags=["options"])
 def list_moods() -> List[str]:
+    """Return a list of available mood labels from the loaded ML model."""
     return ml_model.mood_list if ml_model else []

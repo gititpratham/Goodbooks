@@ -66,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_bt_book ON book_tags (book_id, count DESC);
 
 
 def create_schema(conn: sqlite3.Connection) -> None:
+    """Execute the schema definition to create database tables."""
     conn.executescript(_SCHEMA)
     conn.commit()
 
@@ -73,6 +74,7 @@ def create_schema(conn: sqlite3.Connection) -> None:
 # check if seeded.
 
 def is_seeded(conn: sqlite3.Connection) -> bool:
+    """Check if the database has been populated with books data."""
     row = conn.execute("SELECT COUNT(*) AS c FROM books").fetchone()
     return (row["c"] if row else 0) > 0
 

@@ -44,6 +44,7 @@ class RecommendResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    """Response model for the GET /api/health endpoint."""
     status: str
     service: str
     db_seeded: bool
