@@ -280,9 +280,9 @@ git clone https://github.com/gititpratham/Goodbooks.git
 cd Goodbooks
 
 # 2. Build and start all services
-docker-compose up --build
+docker compose up --build
 
-# 3. If you are using the new Compose
+# if the above command failes to build the image run the following command
 sudo docker compose up --build
 
 # Frontend → http://localhost:8080
@@ -293,13 +293,13 @@ On **first boot**, the backend automatically seeds the SQLite database from `bac
 
 **Rebuild a single service:**
 ```bash
-docker-compose build --no-cache frontend
-docker-compose up -d frontend
+docker compose build --no-cache frontend
+docker compose up -d frontend
 ```
 
 **Stop all containers:**
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ---
@@ -339,7 +339,7 @@ This will:
 
 Then rebuild the backend to pick up the new model:
 ```bash
-docker-compose build --no-cache backend && docker-compose up -d backend
+docker compose build --no-cache backend && docker compose up -d backend
 ```
 
 ---
