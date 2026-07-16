@@ -10,8 +10,8 @@ No installation is required to try the project — it's live on Oracle Cloud Inf
 
 Once the containers (or dev servers) are running, open:
 
-- Frontend: `http://localhost:8080` (Docker) or `http://localhost:5173` (dev server)
-- API docs: `http://localhost:8000/docs`
+- Frontend: `http://localhost:18080` (Docker) or `http://localhost:5173` (dev server)
+- API docs: `http://localhost:18000/docs`
 
 ## Typical Workflow
 
@@ -48,7 +48,7 @@ Pre-selected when the page loads:
 
 ## API Reference
 
-Base URL (local): `http://localhost:8000` · Swagger docs: `http://localhost:8000/docs`
+Base URL (local): `http://localhost:18000` · Swagger docs: `http://localhost:18000/docs`
 
 ### `POST /api/recommend`
 

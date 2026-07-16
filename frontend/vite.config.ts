@@ -9,7 +9,7 @@ export default defineConfig({
     // Proxy /api/* to the Python backend during local development
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:18000',
         changeOrigin: true,
       },
     },

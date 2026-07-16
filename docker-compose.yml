@@ -14,7 +14,7 @@ services:
       - TAGS_CSV=/app/backend/db/tags.csv
       - BOOK_TAGS_CSV=/app/backend/db/book_tags.csv
     ports:
-      - "8000:8000"
+      - "18000:18000"
     restart: unless-stopped
     networks:
       - goodbooks-net
@@ -25,7 +25,7 @@ services:
       dockerfile: Dockerfile
     container_name: goodbooks-frontend
     ports:
-      - "8080:80"
+      - "18080:80"
     depends_on:
       - backend
     restart: unless-stopped

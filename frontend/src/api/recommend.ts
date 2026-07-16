@@ -2,8 +2,8 @@
  * api/recommend.ts — API client for GOOD/BOOKS backend.
  *
  * Requests go to /api/* which:
- *   - In Docker: Nginx proxies to backend:8000
- *   - In local dev: Vite proxies to http://localhost:8000
+ *   - In Docker: Nginx proxies to backend:18000
+ *   - In local dev: Vite proxies to http://localhost:18000
  */
 
 import type { RecommendRequest, RecommendResponse } from '../types'

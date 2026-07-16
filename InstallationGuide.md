@@ -36,7 +36,7 @@ A live hosted version of the application is also available at **goodbooks.pratha
 | Python | Version 3.11 (required only for the manual setup path) |
 | Node.js / npm | Required only for the manual setup path (frontend build) |
 | Disk Space | ~1 GB free (dataset, model artifacts, and container images) |
-| Network Ports | `8080` (frontend) and `8000` (backend API) must be free |
+| Network Ports | `18080` (frontend) and `18000` (backend API) must be free |
 
 ---
 
@@ -72,8 +72,8 @@ Once the containers finish starting, the application is available at:
 
 | Service | URL |
 |---|---|
-| Frontend (Web App) | `http://localhost:8080` |
-| Backend API Docs (Swagger) | `http://localhost:8000/docs` |
+| Frontend (Web App) | `http://localhost:18080` |
+| Backend API Docs (Swagger) | `http://localhost:18000/docs` |
 
 On the **first boot**, the backend automatically seeds the SQLite database from the files in `backend/db/`. This process takes approximately 10–15 seconds. The database is persisted in a named Docker volume (`goodbooks-data`), so subsequent restarts are instant.
 
@@ -88,10 +88,10 @@ Use this method if you prefer to run the frontend and backend directly on your m
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 18000
 ```
 
-The backend API will start on `http://localhost:8000`, with interactive documentation at `http://localhost:8000/docs`.
+The backend API will start on `http://localhost:18000`, with interactive documentation at `http://localhost:18000/docs`.
 
 ### Step 2 — Set Up the Frontend
 
@@ -111,8 +111,8 @@ The frontend development server will start on `http://localhost:5173`.
 
 Once either installation method completes, confirm everything is working correctly:
 
-1. Open `http://localhost:8000/api/health` (Docker) — you should receive a JSON response confirming the backend is healthy and the database is seeded.
-2. Open the frontend URL in your browser (`http://localhost:8080` for Docker, or `http://localhost:5173` for manual setup).
+1. Open `http://localhost:18000/api/health` (Docker) — you should receive a JSON response confirming the backend is healthy and the database is seeded.
+2. Open the frontend URL in your browser (`http://localhost:18080` for Docker, or `http://localhost:5173` for manual setup).
 3. Submit the preference form on the homepage and confirm that book recommendations are returned.
 
 If any step fails, see [Troubleshooting](#troubleshooting) below.
@@ -163,7 +163,7 @@ This ensures the backend picks up the newly trained model file.
 | Issue | Likely Cause | Resolution |
 |---|---|---|
 | `docker compose up --build` fails to build | Insufficient permissions | Re-run the command with `sudo` |
-| Port `8080` or `8000` already in use | Another process is bound to the port | Stop the conflicting process, or edit the port mapping in `docker-compose.yml` |
+| Port `18080` or `18000` already in use | Another process is bound to the port | Stop the conflicting process, or edit the port mapping in `docker-compose.yml` |
 | Frontend loads but shows no recommendations | Backend not yet finished seeding the database | Wait 10–15 seconds after first boot, then refresh |
 | Backend fails to start in manual setup | Missing dependencies | Re-run `pip install -r requirements.txt` inside the `backend` directory |
 | Frontend fails to start in manual setup | Missing Node modules | Re-run `npm install` inside the `frontend` directory |

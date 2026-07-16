@@ -20,6 +20,6 @@ ENV BOOKS_CSV=/app/backend/db/books.csv
 ENV TAGS_CSV=/app/backend/db/tags.csv
 ENV BOOK_TAGS_CSV=/app/backend/db/book_tags.csv
 
-EXPOSE 8000
+EXPOSE 18000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "18000"]

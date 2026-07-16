@@ -65,7 +65,7 @@ The recommendation engine is a **hybrid ML system** combining:
 |                                                             |
 |  +----------------------+       +------------------------+  |
 |  |   Frontend (React)   |-----> |  FastAPI Backend       |  |
-|  |   Port :8080         | <-----|  Port :8000            |  |
+|  |   Port :18080        | <-----|  Port :18000           |  |
 |  |                      |       |                        |  |
 |  |  - TileGroup         |       |  POST /api/recommend   |  |
 |  |  - LengthSlider      |       |  GET  /api/health      |  |
@@ -209,9 +209,9 @@ When a user submits the form, `POST /api/recommend` is called and the following 
 
 ## API Reference
 
-Base URL (local): `http://localhost:8000`
+Base URL (local): `http://localhost:18000`
 
-Swagger docs: `http://localhost:8000/docs`
+Swagger docs: `http://localhost:18000/docs`
 
 ### `POST /api/recommend`
 
@@ -285,8 +285,8 @@ docker compose up --build
 # if the above command failes to build the image run the following command
 sudo docker compose up --build
 
-# Frontend → http://localhost:8080
-# API Docs  → http://localhost:8000/docs
+# Frontend → http://localhost:18080
+# API Docs  → http://localhost:18000/docs
 ```
 
 On **first boot**, the backend automatically seeds the SQLite database from `backend/db/`. This takes ~10–15 seconds. The database persists via a Docker volume so subsequent starts are instant.
@@ -310,7 +310,7 @@ docker compose down
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 18000
 ```
 
 **Frontend:**

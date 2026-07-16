@@ -36,7 +36,7 @@ GOOD/BOOKS can be accessed in two ways:
 | Access Method | Location |
 |---|---|
 | **Live Demo** | [goodbooks.pratham.dpdns.org](https://goodbooks.pratham.dpdns.org) |
-| **Self-Hosted** | `http://localhost:8080` after a local installation (see the *Installation Guide*) |
+| **Self-Hosted** | `http://localhost:18080` after a local installation (see the *Installation Guide*) |
 
 No account or sign-up is required — recommendations are generated instantly from the preferences you select on the page.
 
@@ -120,8 +120,8 @@ If you submit the form without changing anything, GOOD/BOOKS uses the following 
 
 Developers integrating with or extending GOOD/BOOKS can call the backend API directly.
 
-**Base URL (local installation):** `http://localhost:8000`
-**Interactive documentation (Swagger):** `http://localhost:8000/docs`
+**Base URL (local installation):** `http://localhost:18000`
+**Interactive documentation (Swagger):** `http://localhost:18000/docs`
 
 ### `POST /api/recommend`
 

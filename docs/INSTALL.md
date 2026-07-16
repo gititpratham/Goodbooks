@@ -20,8 +20,8 @@ docker compose up --build
 sudo docker compose up --build
 ```
 
-- Frontend → http://localhost:8080
-- API Docs → http://localhost:8000/docs
+- Frontend → http://localhost:18080
+- API Docs → http://localhost:18000/docs
 
 On **first boot**, the backend automatically seeds the SQLite database from `backend/db/`. This
 takes about 10–15 seconds. The database persists via a Docker volume (`goodbooks-data`), so
@@ -47,7 +47,7 @@ docker compose down
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 18000
 ```
 
 **Frontend:**
