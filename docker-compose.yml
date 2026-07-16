@@ -18,16 +18,25 @@ services:
     restart: unless-stopped
     networks:
       - goodbooks-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18000/api/health')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: goodbooks-frontend
+    environment:
+      - DOCKER_ENV=true
     ports:
-      - "18080:80"
+      - "18080:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - goodbooks-net

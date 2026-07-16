@@ -28,18 +28,19 @@ def _seed_worker() -> None:
         conn = get_connection()
         create_schema(conn)
         if not is_seeded(conn):
-            log.info("Database empty, seeding now (first run, ~10s)...")
+            log.info("Database empty, seeding now...")
             seed(conn)
         else:
             n = conn.execute("SELECT COUNT(*) AS c FROM books").fetchone()["c"]
-            log.info("Database already seeded (%d books). Ready.", n)
+            log.info("Database already seeded (%d books).", n)
         conn.close()
         
-        # Load ML model
+        # to load ML model
         model_path = os.path.join(os.path.dirname(__file__), "model", "recommender.joblib")
         if os.path.exists(model_path):
             ml_model = MLBookRecommender(model_path)
             log.info("ML Recommender loaded successfully! ")
+
         else:
             log.warning(f"ML Recommender model not found at {model_path}.")
             
@@ -52,7 +53,7 @@ def _seed_worker() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Lifespan event handler to manage startup and shutdown tasks, such as starting the database seeding thread."""
+    """Lifespan event handler to manage startup and shutdown tasks."""
     t = threading.Thread(target=_seed_worker, daemon=True, name="seeder")
     t.start()
     yield
@@ -60,7 +61,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="GOOD/BOOKS Recommendation API",
-    version="2.0.0",
+    version="1.0.2",
     description="Hybrid ML book recommendation engine built on Goodbooks-10K.",
     lifespan=lifespan,
 )
@@ -76,6 +77,8 @@ app.add_middleware(
 @app.get("/api/health", response_model=HealthResponse, tags=["meta"])
 def health() -> HealthResponse:
     """Health check endpoint to report API status and database seeding progress."""
+    if not _db_ready.is_set() or not ml_model:
+        raise HTTPException(status_code=503, detail="Service starting — database seeding or model loading in progress.")
     try:
         conn    = get_connection()
         seeded  = is_seeded(conn)
@@ -115,7 +118,7 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
                 genres=eval(rb["genres"]) if isinstance(rb["genres"], str) and rb["genres"].startswith("[") else [],
                 moods=[], # the ML model doesn't directly return matched moods without the explain() method, but we can just use req.moods for display if we want.
                 pitch=rb["description"],
-                match=int(max(50, min(100, rb["ml_score"] * 100))), # Convert 0-1 probability to percentage.
+                match=int(max(50, min(100, rb["ml_score"] * 100))), # converting 0-1 probability to percentage.
                 average_rating=rb["average_rating"],
                 ratings_count=rb["ratings_count"],
                 pages=rb["pages"],
@@ -123,7 +126,7 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
                 pub_year=rb["pub_year"]
             ))
         
-        # Apply filter: either show the 1st 90% match books or the top 6.
+        # apply filter: either show the 1st 90% match books or the top 6.
         books_90_plus = [b for b in books if b.match >= 90]
         if len(books_90_plus) >= 6:
             books = books_90_plus

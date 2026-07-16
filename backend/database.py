@@ -12,15 +12,27 @@ log = logging.getLogger(__name__)
 _HERE = Path(__file__).parent
 
 DB_PATH       = Path(os.environ.get("DB_PATH",       str(_HERE / "goodbooks.db")))
-BOOKS_CSV     = Path(os.environ.get("BOOKS_CSV",     str(_HERE / "db" / "books_with_descriptions.csv")))
+BOOKS_CSV     = Path(os.environ.get("BOOKS_CSV",     str(_HERE / "db" / "books.csv")))
 TAGS_CSV      = Path(os.environ.get("TAGS_CSV",      str(_HERE / "db" / "tags.csv")))
 BOOK_TAGS_CSV = Path(os.environ.get("BOOK_TAGS_CSV", str(_HERE / "db" / "book_tags.csv")))
+DUMP_PATH     = _HERE / "goodbooks_dump.db"
 
 # db connection. 
 
 def get_connection() -> sqlite3.Connection:
     """Return a new WAL-mode SQLite connection with row_factory."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Fast seed: copy pre-seeded database if it doesn't exist yet
+    if not DB_PATH.exists() and DUMP_PATH.exists():
+        try:
+            log.info(f"Copying pre-seeded database from {DUMP_PATH} to {DB_PATH}...")
+            import shutil
+            shutil.copy2(str(DUMP_PATH), str(DB_PATH))
+            log.info("Database pre-seeded successfully!")
+        except Exception as e:
+            log.error(f"Failed to copy pre-seeded database: {e}", exc_info=True)
+
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
