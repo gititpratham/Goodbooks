@@ -81,7 +81,7 @@ The recommendation engine is a **hybrid ML system** combining:
 
 ## Architecture
 
-![System Architecture](archive/diagrams/architecture.png)
+![System Architecture](archive/diagrams/integrationdiag.png)
 
 Both services run inside Docker containers and communicate over an internal bridge network (`goodbooks-net`). The Vite dev-server proxies all `/api` requests to the FastAPI backend. The SQLite database is persisted via a named Docker volume (`goodbooks-data`).
 
@@ -91,11 +91,11 @@ Both services run inside Docker containers and communicate over an internal brid
 
 ### ML Inference Pipeline
 
-![ML Inference Pipeline](archive/diagrams/ml_inference_pipeline.png)
+![ML Inference Pipeline](archive/diagrams/InferencePipeline.png)
 
 ### End-to-End Request Lifecycle
 
-![Request Data Flow](archive/diagrams/data_flow.png)
+![Request Data Flow](archive/diagrams/lifecycle.png)
 
 ---
 
