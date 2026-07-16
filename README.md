@@ -3,21 +3,24 @@
 > **Your next great read is waiting.**
 > A full-stack, ML-powered book recommendation app built on the Goodbooks-10K dataset.
 >
-> 🌐 **Live Demo**: This project is currently deployed on a live **Oracle Cloud Infrastructure (OCI) Instance**! Try the recommendation engine here: [goodbooks.pratham.dpdns.org](https://goodbooks.pratham.dpdns.org)
+> **Live Demo**: This project is currently deployed on a live **Oracle Cloud Infrastructure (OCI) Instance**! Try the recommendation engine here: [goodbooks.pratham.dpdns.org](https://goodbooks.pratham.dpdns.org)
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
+- [Data Flow](#data-flow)
 - [Project Structure](#project-structure)
 - [How the Recommender Works](#how-the-recommender-works)
   - [ML Model Training](#ml-model-training)
   - [Inference Pipeline](#inference-pipeline)
   - [Filters Explained](#filters-explained)
 - [API Reference](#api-reference)
+- [How To Use](#how-to-use)
 - [Running Locally](#running-locally)
   - [Prerequisites](#prerequisites)
   - [Quick Start with Docker](#quick-start-with-docker)
@@ -27,6 +30,11 @@
 - [Filter Defaults](#filter-defaults)
 - [Dataset](#dataset)
 - [Archive Folder](#archive-folder)
+- [Documentation](#documentation)
+- [Screenshots](#screenshots)
+- [Author](#author)
+- [Acknowledgements](#acknowledgements)
+- [AI Transparency](#ai-transparency)
 
 ---
 
@@ -41,6 +49,20 @@ The recommendation engine is a **hybrid ML system** combining:
 - **Hard filters** for rating, page count, publication era, and popularity.
 
 ---
+
+## Features
+
+- **Neural Network Recommendations** — MLP classifier trained on 424K+ real user interactions scores all 10,000 books simultaneously.
+- **Genre & Mood Matching** — 39 genre labels + 8 mood labels encoded as preference vectors, not just keyword tags.
+- **Semantic Description Similarity** — TF-IDF + TruncatedSVD embeds book descriptions into 64-dimensional semantic space.
+- **Smart Hard Filters** — Minimum rating, page-count budget, publication era, and popularity preference applied post-ML.
+- **Sub-100ms Inference** — All 10K books scored in a single batched forward pass.
+- **40ms Cold Start** — Pre-seeded SQLite binary eliminates slow CSV-seeding on startup.
+- **One-Command Docker Deploy** — `docker compose up --build` brings up both services with a shared bridge network.
+- **Live Deployed** — Running on an Oracle Cloud Infrastructure VM at [goodbooks.pratham.dpdns.org](https://goodbooks.pratham.dpdns.org).
+
+---
+
 
 ## Tech Stack
 
@@ -59,34 +81,24 @@ The recommendation engine is a **hybrid ML system** combining:
 
 ## Architecture
 
-```
-+-------------------------------------------------------------+
-|                        GOOD/BOOKS                           |
-|                                                             |
-|  +----------------------+       +------------------------+  |
-|  |   Frontend (React)   |-----> |  FastAPI Backend       |  |
-|  |   Port :18080        | <-----|  Port :18000           |  |
-|  |                      |       |                        |  |
-|  |  - TileGroup         |       |  POST /api/recommend   |  |
-|  |  - LengthSlider      |       |  GET  /api/health      |  |
-|  |  - RatingSlider      |       |  GET  /api/options/*   |  |
-|  |  - BookCard          |       |                        |  |
-|  +----------------------+       |  +-----------------+   |  |
-|                                 |  | MLBookRecommend |   |  |
-|                                 |  |  (MLP Classifier|   |  |
-|                                 |  +--------+--------+   |  |
-|                                 |           |            |  |
-|                                 |  +--------v--------+   |  |
-|                                 |  |   SQLite DB     |   |  |
-|                                 |  |  (10K books)    |   |  |
-|                                 |  +-----------------+   |  |
-|                                 +------------------------+  |
-+-------------------------------------------------------------+
-```
+![System Architecture](archive/diagrams/architecture.png)
 
-Both services run inside Docker containers and communicate over an internal bridge network (`goodbooks-net`). The SQLite database is persisted via a named Docker volume (`goodbooks-data`).
+Both services run inside Docker containers and communicate over an internal bridge network (`goodbooks-net`). The Vite dev-server proxies all `/api` requests to the FastAPI backend. The SQLite database is persisted via a named Docker volume (`goodbooks-data`).
 
 ---
+
+## Data Flow
+
+### ML Inference Pipeline
+
+![ML Inference Pipeline](archive/diagrams/ml_inference_pipeline.png)
+
+### End-to-End Request Lifecycle
+
+![Request Data Flow](archive/diagrams/data_flow.png)
+
+---
+
 
 ## Project Structure
 
@@ -266,6 +278,19 @@ Returns available mood labels (sourced from the loaded ML model).
 
 ---
 
+## How To Use
+
+1. **Open** [http://localhost:18080](http://localhost:18080) in your browser (or the [live demo](https://goodbooks.pratham.dpdns.org)).
+2. **Select Genres** — pick one or more genres that interest you (e.g. Fantasy, Thriller).
+3. **Select Moods** — choose the reading vibe you're after (e.g. Cozy, Dark & Twisty).
+4. **Choose Popularity** — `Popular` for well-known titles, `Underrated` to discover hidden gems.
+5. **Set Min Rating** — drag the slider to your minimum acceptable star rating (default ★ 4.0).
+6. **Set Book Runtime** — limit by estimated reading time, converted to page count at 50 pages/hr (default 30 hrs).
+7. **Choose Era** — `Recent` (≥ 2000), `Classic` (< 1980), or `Any`.
+8. **Click "FIND MY BOOK →"** — the ML engine scores all 10,000 books and returns your ranked shortlist in under 100ms.
+
+---
+
 ## Running Locally
 
 ### Prerequisites
@@ -366,7 +391,7 @@ Pre-selected when the page loads:
 | Genres | Fantasy, Sci-Fi, Thriller |
 | Mood | Cozy |
 | Popularity | Popular |
-| Min Rating | ★ 4.0 |
+| Min Rating | 4.0 stars |
 | Max Book Runtime | 30 hrs (≤ 1,500 pages) |
 | Era | Recent (≥ 2000) |
 
@@ -402,6 +427,55 @@ Development scripts kept for reference — **not used by the running app**:
 | `goodbooks_eda.py` | Exploratory Data Analysis of the raw dataset |
 | `generate_descriptions.py` | Utility to generate book description summaries |
 | `eda/` | EDA output charts (PNG images) |
+
+---
+
+## Documentation
+
+Detailed documentation is available in the [`docs/`](docs/) folder:
+
+| File | Description |
+|---|---|
+| [`docs/INSTALL.md`](docs/INSTALL.md) | Step-by-step installation and environment setup guide |
+| [`docs/USAGE.md`](docs/USAGE.md) | Detailed usage guide, filter reference, and API walkthrough |
+| [`docs/WHY.md`](docs/WHY.md) | Project background — why this project was chosen and what makes its approach different from a typical single-strategy recommender |
+
+---
+
+## Screenshots
+
+**Intake Form — Genre & Mood Selection**
+
+![Intake Form — Genre and Mood Selection](archive/ss/1.png)
+
+**Intake Form — Filters & CTA**
+
+![Intake Form — Filters and Submit](archive/ss/2.png)
+
+**Results — Your Shortlist**
+
+![Results Shortlist](archive/ss/3.png)
+
+---
+
+## Author
+
+**Pratham Patel**
+
+[![GitHub](https://img.shields.io/badge/GitHub-gititpratham-181717?style=flat&logo=github)](https://github.com/gititpratham)
+
+---
+
+## Acknowledgements
+
+This project was developed as part of a technical recruitment assessment.
+
+**Open source technologies used:**
+[FastAPI](https://fastapi.tiangolo.com) · [React](https://react.dev) · [Docker](https://www.docker.com) · [Scikit-learn](https://scikit-learn.org) · [Pydantic](https://docs.pydantic.dev) · [Vite](https://vitejs.dev) · [SQLite](https://sqlite.org)
+
+Thanks to [Kaggle](https://www.kaggle.com) and [Zygmunt Zając](https://www.kaggle.com/datasets/zygmunt/goodbooks-10k) for making the Goodbooks-10K dataset publicly available.
+
+The reasoning behind why this project was chosen, and what makes its approach different from a typical single-strategy recommender, is documented in [`docs/WHY.md`](docs/WHY.md).
 
 ---
 
